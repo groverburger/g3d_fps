@@ -20,7 +20,7 @@ local function fastDotProduct(a1,a2,a3, b1,b2,b3)
     return a1*b1 + a2*b2 + a3*b3
 end
 local function fastNormalizeVector(x,y,z)
-    local mag = math.sqrt(x^2, y^2, z^2)
+    local mag = math.sqrt(x^2 + y^2 + z^2)
     return x/mag, y/mag, z/mag
 end
 
@@ -224,6 +224,9 @@ function collisions:rayIntersection(src_1, src_2, src_3, dir_1, dir_2, dir_3)
         end
     end
 
+    if finalLength then
+        norm_x, norm_y, norm_z = fastNormalizeVector(norm_x, norm_y, norm_z)
+    end
     return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
 end
 

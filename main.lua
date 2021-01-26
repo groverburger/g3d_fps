@@ -22,6 +22,15 @@ end
 
 function love.draw()
     Map:draw()
+
+    local function round(number)
+        if number then
+            return math.floor(number*100 + 0.5)/100
+        end
+        return "nil"
+    end
+
+    love.graphics.print("normal: " .. round(ThePlayer.floorNormal[1]) .. ", " .. round(ThePlayer.floorNormal[2]) .. ", " .. round(ThePlayer.floorNormal[3]))
 end
 
 Player = {}
@@ -31,7 +40,9 @@ function Player:new(x,y,z)
     local self = setmetatable({}, Player)
     self.position = {x,y,z}
     self.speed = {0,0,0}
+    self.floorNormal = {0,1,0}
     self.height = 0.5
+    self.width = 0.1
     return self
 end
 
@@ -82,7 +93,7 @@ function Player:update(dt)
     -- vertical collisions
     if self.speed[2] >= 0 then
         -- floor collision
-        local gravColl, where_x, where_y, where_z = Map:rayIntersection(
+        local gravColl, where_x, where_y, where_z, norm_x, norm_y, norm_z = Map:rayIntersection(
             self.position[1],
             self.position[2],
             self.position[3],
@@ -91,10 +102,24 @@ function Player:update(dt)
             0
         )
 
+        self.floorNormal[1] = nil
+        self.floorNormal[2] = nil
+        self.floorNormal[3] = nil
+
         if gravColl and self.position[2] + self.speed[2]*dt + self.height > where_y then
             self.speed[2] = 0
             self.position[2] = where_y - self.height
             onGround = true
+
+            self.floorNormal[1] = norm_x
+            self.floorNormal[2] = norm_y
+            self.floorNormal[3] = norm_z
+
+            -- standing on steep slope, slide down
+            if math.abs(norm_x) > 0.72 or math.abs(norm_z) > 0.72 then
+                self.speed[1] = self.speed[1] + norm_x
+                self.speed[3] = self.speed[3] + norm_z
+            end
         end
     else
         -- ceiling collision
@@ -135,13 +160,15 @@ function Player:update(dt)
         )
 
         if not coll or coll > 0.1 then
+            -- not hitting a wall, move normally
             self.position[1] = self.position[1] + self.speed[1]*dt
             self.position[3] = self.position[3] + self.speed[3]*dt
         else
+            -- hit a wall
             self.position[1] = self.position[1] - self.speed[1]*dt
             self.position[3] = self.position[3] - self.speed[3]*dt
             self.speed[1] = 0
-            self.speed[2] = math.max(0.1, self.speed[2])
+            --self.speed[2] = math.max(0.1, self.speed[2])
             self.speed[3] = 0
         end
     end
