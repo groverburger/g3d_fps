@@ -49,7 +49,7 @@ end
 --     https://github.com/excessive/cpml/blob/master/modules/intersect.lua
 --     http://www.lighthouse3d.com/tutorials/maths/ray-triangle-intersection/
 local tiny = 2.2204460492503131e-16 -- the smallest possible value for a double, "double epsilon"
-local function triangleRay(src_x, src_y, src_z, dir_x, dir_y, dir_z, tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z)
+local function triangleRay(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z, dir_x, dir_y, dir_z)
     -- cache these variables for efficiency
     local e11,e12,e13 = fastSubtract(tri_1_x,tri_1_y,tri_1_z, tri_0_x,tri_0_y,tri_0_z)
     local e21,e22,e23 = fastSubtract(tri_2_x,tri_2_y,tri_2_z, tri_0_x,tri_0_y,tri_0_z)
@@ -95,7 +95,7 @@ end
 --
 -- sources:
 --     https://wickedengine.net/2020/04/26/capsule-collision-detection/
-local function triangleSphere(src_x, src_y, src_z, radius, tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z)
+local function triangleSphere(tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z, radius, tri_0_x)
     local side1_x, side1_y, side1_z = tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z
     local side2_x, side2_y, side2_z = tri_2_x - tri_0_x, tri_2_y - tri_0_y, tri_2_z - tri_0_z
     local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
@@ -160,7 +160,7 @@ end
 --
 -- sources:
 --     https://wickedengine.net/2020/04/26/capsule-collision-detection/
-local function trianglePoint(src_x, src_y, src_z, tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z)
+local function trianglePoint(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z)
     local side1_x, side1_y, side1_z = tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z
     local side2_x, side2_y, side2_z = tri_2_x - tri_0_x, tri_2_y - tri_0_y, tri_2_z - tri_0_z
     local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
@@ -209,7 +209,116 @@ local function trianglePoint(src_x, src_y, src_z, tri_0_x, tri_0_y, tri_0_z, tri
     end
 end
 
+local function findClosest(self, func, ...)
+    -- declare the variables that will be returned by the function
+    local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
 
+    -- cache references to this model's properties for efficiency
+    local translation_x = self.translation[1]
+    local translation_y = self.translation[2]
+    local translation_z = self.translation[3]
+    local scale_x = self.scale[1]
+    local scale_y = self.scale[2]
+    local scale_z = self.scale[3]
+    local verts = self.verts
+
+    for v=1, #verts, 3 do
+        -- do a dot product to check if this face is a backface
+        -- if this is a backface, don't check it for collision
+        local length, wx,wy,wz, nx,ny,nz = func(
+            verts[v][1]*scale_x + translation_x,
+            verts[v][2]*scale_y + translation_y,
+            verts[v][3]*scale_z + translation_z,
+            verts[v+1][1]*scale_x + translation_x,
+            verts[v+1][2]*scale_y + translation_y,
+            verts[v+1][3]*scale_z + translation_z,
+            verts[v+2][1]*scale_x + translation_x,
+            verts[v+2][2]*scale_y + translation_y,
+            verts[v+2][3]*scale_z + translation_z,
+            ...
+        )
+
+        if length and (not finalLength or length < finalLength) then
+            finalLength = length
+            where_x = wx
+            where_y = wy
+            where_z = wz
+            norm_x = nx
+            norm_y = ny
+            norm_z = nz
+        end
+    end
+
+    -- normalize the normal vector before it is returned
+    if finalLength then
+        norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
+    end
+
+    -- return all the information in a standardized way
+    return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
+end
+
+function collisions:rayIntersection(src_x, src_y, src_z, dir_x, dir_y, dir_z)
+    return findClosest(self, triangleRay, src_x, src_y, src_z, dir_x, dir_y, dir_z)
+end
+
+function collisions:sphereIntersection(src_x, src_y, src_z, radius)
+    return findClosest(self, triangleSphere, src_x, src_y, src_z, radius)
+end
+
+function collisions:closestPoint(src_x, src_y, src_z)
+    return findClosest(self, trianglePoint, src_x, src_y, src_z)
+end
+
+function collisions:capsuleIntersection(src_1, src_2, src_3)
+    -- declare the variables that will be returned by the function
+    local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
+
+    -- cache references to this model's properties for efficiency
+    local translation_x = self.translation[1]
+    local translation_y = self.translation[2]
+    local translation_z = self.translation[3]
+    local scale_x = self.scale[1]
+    local scale_y = self.scale[2]
+    local scale_z = self.scale[3]
+    local verts = self.verts
+
+    for v=1, #verts, 3 do
+        local length, wx,wy,wz, nx,ny,nz = trianglePoint(
+            src_1,
+            src_2,
+            src_3,
+            verts[v][1]*scale_x + translation_x,
+            verts[v][2]*scale_y + translation_y,
+            verts[v][3]*scale_z + translation_z,
+            verts[v+1][1]*scale_x + translation_x,
+            verts[v+1][2]*scale_y + translation_y,
+            verts[v+1][3]*scale_z + translation_z,
+            verts[v+2][1]*scale_x + translation_x,
+            verts[v+2][2]*scale_y + translation_y,
+            verts[v+2][3]*scale_z + translation_z
+        )
+
+        if length and (not finalLength or length < finalLength) then
+            finalLength = length
+            where_x = wx
+            where_y = wy
+            where_z = wz
+            norm_x = nx
+            norm_y = ny
+            norm_z = nz
+        end
+    end
+
+    if finalLength then
+        norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
+    end
+    return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
+end
+
+----------------------------------------------------------------------------------------------------
+-- AABB functions
+----------------------------------------------------------------------------------------------------
 -- generate an axis-aligned bounding box
 -- very useful for less precise collisions, like hitboxes
 --
@@ -322,154 +431,6 @@ function collisions:rayIntersectionAABB(src_1, src_2, src_3, dir_1, dir_2, dir_3
     local where_2 = src_2 + dir_2 * tmin
     local where_3 = src_3 + dir_3 * tmin
 	return tmin, where_1, where_2, where_3
-end
-
-function collisions:rayIntersection(src_x, src_y, src_z, dir_x, dir_y, dir_z)
-    -- declare the variables that will be returned by the function
-    local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
-
-    -- cache references to this model's properties for efficiency
-    local translation_x = self.translation[1]
-    local translation_y = self.translation[2]
-    local translation_z = self.translation[3]
-    local scale_x = self.scale[1]
-    local scale_y = self.scale[2]
-    local scale_z = self.scale[3]
-    local verts = self.verts
-
-    for v=1, #verts, 3 do
-        -- do a dot product to check if this face is a backface
-        -- if this is a backface, don't check it for collision
-        if fastDotProduct(verts[v][6]*scale_x,verts[v][7]*scale_y,verts[v][8]*scale_z, dir_x,dir_y,dir_z) < 0 then
-            local length, temp_where_x, temp_where_y, temp_where_z, temp_norm_x, temp_norm_y, temp_norm_z = triangleRay(
-                src_x,
-                src_y,
-                src_z,
-                dir_x,
-                dir_y,
-                dir_z,
-                verts[v][1]*scale_x + translation_x,
-                verts[v][2]*scale_y + translation_y,
-                verts[v][3]*scale_z + translation_z,
-                verts[v+1][1]*scale_x + translation_x,
-                verts[v+1][2]*scale_y + translation_y,
-                verts[v+1][3]*scale_z + translation_z,
-                verts[v+2][1]*scale_x + translation_x,
-                verts[v+2][2]*scale_y + translation_y,
-                verts[v+2][3]*scale_z + translation_z
-            )
-
-            if length and (not finalLength or length < finalLength) then
-                finalLength = length
-                where_x = temp_where_x
-                where_y = temp_where_y
-                where_z = temp_where_z
-                norm_x = temp_norm_x
-                norm_y = temp_norm_y
-                norm_z = temp_norm_z
-            end
-        end
-    end
-
-    if finalLength then
-        norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
-    end
-    return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
-end
-
-function collisions:sphereIntersection(src_1, src_2, src_3, radius)
-    -- declare the variables that will be returned by the function
-    local finalLength, where_x, where_y, where_z
-    local norm_x, norm_y, norm_z
-
-    -- cache references to this model's properties for efficiency
-    local translation_x = self.translation[1]
-    local translation_y = self.translation[2]
-    local translation_z = self.translation[3]
-    local scale_x = self.scale[1]
-    local scale_y = self.scale[2]
-    local scale_z = self.scale[3]
-    local verts = self.verts
-
-    for v=1, #verts, 3 do
-        local length, wx,wy,wz, nx,ny,nz = triangleSphere(
-            src_1,
-            src_2,
-            src_3,
-            radius,
-            verts[v][1]*scale_x + translation_x,
-            verts[v][2]*scale_y + translation_y,
-            verts[v][3]*scale_z + translation_z,
-            verts[v+1][1]*scale_x + translation_x,
-            verts[v+1][2]*scale_y + translation_y,
-            verts[v+1][3]*scale_z + translation_z,
-            verts[v+2][1]*scale_x + translation_x,
-            verts[v+2][2]*scale_y + translation_y,
-            verts[v+2][3]*scale_z + translation_z
-        )
-
-        if length and (not finalLength or length < finalLength) then
-            finalLength = length
-            where_x = wx
-            where_y = wy
-            where_z = wz
-            norm_x = nx
-            norm_y = ny
-            norm_z = nz
-        end
-    end
-
-    if finalLength then
-        norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
-    end
-    return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
-end
-
-function collisions:closestPoint(src_1, src_2, src_3)
-    -- declare the variables that will be returned by the function
-    local finalLength, where_x, where_y, where_z
-    local norm_x, norm_y, norm_z
-
-    -- cache references to this model's properties for efficiency
-    local translation_x = self.translation[1]
-    local translation_y = self.translation[2]
-    local translation_z = self.translation[3]
-    local scale_x = self.scale[1]
-    local scale_y = self.scale[2]
-    local scale_z = self.scale[3]
-    local verts = self.verts
-
-    for v=1, #verts, 3 do
-        local length, wx,wy,wz, nx,ny,nz = trianglePoint(
-            src_1,
-            src_2,
-            src_3,
-            verts[v][1]*scale_x + translation_x,
-            verts[v][2]*scale_y + translation_y,
-            verts[v][3]*scale_z + translation_z,
-            verts[v+1][1]*scale_x + translation_x,
-            verts[v+1][2]*scale_y + translation_y,
-            verts[v+1][3]*scale_z + translation_z,
-            verts[v+2][1]*scale_x + translation_x,
-            verts[v+2][2]*scale_y + translation_y,
-            verts[v+2][3]*scale_z + translation_z
-        )
-
-        if length and (not finalLength or length < finalLength) then
-            finalLength = length
-            where_x = wx
-            where_y = wy
-            where_z = wz
-            norm_x = nx
-            norm_y = ny
-            norm_z = nz
-        end
-    end
-
-    if finalLength then
-        norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
-    end
-    return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
 end
 
 return collisions
