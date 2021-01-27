@@ -34,6 +34,181 @@ local function fastMagnitude(x,y,z)
     return math.sqrt(x^2 + y^2 + z^2)
 end
 
+local function closestPointOnLineSegment(a_x, a_y, a_z, b_x, b_y, b_z, x,y,z)
+    local ab_x, ab_y, ab_z = b_x - a_x, b_y - a_y, b_z - a_z
+    local t = fastDotProduct(x - a_x, y - a_y, z - a_z, ab_x, ab_y, ab_z) / (ab_x^2 + ab_y^2 + ab_z^2)
+    t = math.min(1, math.max(0, t))
+    return a_x + t*ab_x, a_y + t*ab_y, a_z + t*ab_z
+end
+
+-- model - ray intersection
+-- based off of triangle - ray collision from excessive's CPML library
+-- does a triangle - ray collision for every face in the model to find the shortest collision
+--
+-- sources:
+--     https://github.com/excessive/cpml/blob/master/modules/intersect.lua
+--     http://www.lighthouse3d.com/tutorials/maths/ray-triangle-intersection/
+local tiny = 2.2204460492503131e-16 -- the smallest possible value for a double, "double epsilon"
+local function triangleRay(src_x, src_y, src_z, dir_x, dir_y, dir_z, tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z)
+    -- cache these variables for efficiency
+    local e11,e12,e13 = fastSubtract(tri_1_x,tri_1_y,tri_1_z, tri_0_x,tri_0_y,tri_0_z)
+    local e21,e22,e23 = fastSubtract(tri_2_x,tri_2_y,tri_2_z, tri_0_x,tri_0_y,tri_0_z)
+    local h1,h2,h3 = fastCrossProduct(dir_x,dir_y,dir_z, e21,e22,e23)
+    local a = fastDotProduct(h1,h2,h3, e11,e12,e13)
+
+    -- if a is too close to 0, ray does not intersect triangle
+    if math.abs(a) <= tiny then
+        return
+    end
+
+    local s1,s2,s3 = fastSubtract(src_x,src_y,src_z, tri_0_x,tri_0_y,tri_0_z)
+    local u = fastDotProduct(s1,s2,s3, h1,h2,h3) / a
+
+    -- ray does not intersect triangle
+    if u < 0 or u > 1 then
+        return
+    end
+
+    local q1,q2,q3 = fastCrossProduct(s1,s2,s3, e11,e12,e13)
+    local v = fastDotProduct(dir_x,dir_y,dir_z, q1,q2,q3) / a
+
+    -- ray does not intersect triangle
+    if v < 0 or u + v > 1 then
+        return
+    end
+
+    -- at this stage we can compute t to find out where
+    -- the intersection point is on the line
+    local thisLength = fastDotProduct(q1,q2,q3, e21,e22,e23) / a
+
+    -- if hit this triangle and it's closer than any other hit triangle
+    if thisLength >= tiny and (not finalLength or thisLength < finalLength) then
+        local norm_x, norm_y, norm_z = fastCrossProduct(e11,e12,e13, e21,e22,e23)
+
+        return thisLength, src_x + dir_x*thisLength, src_y + dir_y*thisLength, src_z + dir_z*thisLength, norm_x, norm_y, norm_z
+    end
+end
+
+-- detects a collision between a triangle and a sphere
+-- because this function may be called on thousands of triangles, all tables have been removed for efficiency
+-- this ends up making the code look really ugly, but it's worth it
+--
+-- sources:
+--     https://wickedengine.net/2020/04/26/capsule-collision-detection/
+local function triangleSphere(src_x, src_y, src_z, radius, tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z)
+    local side1_x, side1_y, side1_z = tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z
+    local side2_x, side2_y, side2_z = tri_2_x - tri_0_x, tri_2_y - tri_0_y, tri_2_z - tri_0_z
+    local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
+    local dist = fastDotProduct(src_x - tri_0_x, src_y - tri_0_y, src_z - tri_0_z, n_x, n_y, n_z)
+
+    -- collision not possible, just return
+    if dist < -radius or dist > radius then
+        return
+    end
+
+    -- itx stands for intersection
+    local itx_x, itx_y, itx_z = src_x - n_x * dist, src_y - n_y * dist, src_z - n_z * dist
+
+    -- determine whether itx is inside the triangle
+    -- project it onto the triangle and return if this is the case
+    local c0_x, c0_y, c0_z = fastCrossProduct(itx_x - tri_0_x, itx_y - tri_0_y, itx_z - tri_0_z, tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z)
+    local c1_x, c1_y, c1_z = fastCrossProduct(itx_x - tri_1_x, itx_y - tri_1_y, itx_z - tri_1_z, tri_2_x - tri_1_x, tri_2_y - tri_1_y, tri_2_z - tri_1_z)
+    local c2_x, c2_y, c2_z = fastCrossProduct(itx_x - tri_2_x, itx_y - tri_2_y, itx_z - tri_2_z, tri_0_x - tri_2_x, tri_0_y - tri_2_y, tri_0_z - tri_2_z)
+    if  fastDotProduct(c0_x, c0_y, c0_z, n_x, n_y, n_z) <= 0
+    and fastDotProduct(c1_x, c1_y, c1_z, n_x, n_y, n_z) <= 0
+    and fastDotProduct(c2_x, c2_y, c2_z, n_x, n_y, n_z) <= 0 then
+        n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+        return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
+    end
+
+    -- itx is outside triangle
+    -- find points on all three line segments that are closest to itx
+    -- if distance between itx and one of these three closest points is in range, there is an intersection
+    local radiussq = radius * radius
+    local smallestDist
+
+    local line1_x, line1_y, line1_z = closestPointOnLineSegment(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, src_x, src_y, src_z)
+    local dist = (src_x - line1_x)^2 + (src_y - line1_y)^2 + (src_z - line1_z)^2
+    if dist < radiussq then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line1_x, line1_y, line1_z
+    end
+
+    local line2_x, line2_y, line2_z = closestPointOnLineSegment(tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z)
+    local dist = (src_x - line2_x)^2 + (src_y - line2_y)^2 + (src_z - line2_z)^2
+    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line2_x, line2_y, line2_z
+    end
+
+    local line3_x, line3_y, line3_z = closestPointOnLineSegment(tri_2_x, tri_2_y, tri_2_z, tri_0_x, tri_0_y, tri_0_z, src_x, src_y, src_z)
+    local dist = (src_x - line3_x)^2 + (src_y - line3_y)^2 + (src_z - line3_z)^2
+    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line3_x, line3_y, line3_z
+    end
+
+    if smallestDist then
+        n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+        return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
+    end
+end
+
+-- detects a collision between a triangle and a point
+-- because this function may be called on thousands of triangles, all tables have been removed for efficiency
+-- this ends up making the code look really ugly, but it's worth it
+--
+-- sources:
+--     https://wickedengine.net/2020/04/26/capsule-collision-detection/
+local function trianglePoint(src_x, src_y, src_z, tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z)
+    local side1_x, side1_y, side1_z = tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z
+    local side2_x, side2_y, side2_z = tri_2_x - tri_0_x, tri_2_y - tri_0_y, tri_2_z - tri_0_z
+    local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
+    local dist = fastDotProduct(src_x - tri_0_x, src_y - tri_0_y, src_z - tri_0_z, n_x, n_y, n_z)
+
+    -- itx stands for intersection
+    local itx_x, itx_y, itx_z = src_x - n_x * dist, src_y - n_y * dist, src_z - n_z * dist
+
+    -- determine whether itx is inside the triangle
+    -- project it onto the triangle and return if this is the case
+    local c0_x, c0_y, c0_z = fastCrossProduct(itx_x - tri_0_x, itx_y - tri_0_y, itx_z - tri_0_z, tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z)
+    local c1_x, c1_y, c1_z = fastCrossProduct(itx_x - tri_1_x, itx_y - tri_1_y, itx_z - tri_1_z, tri_2_x - tri_1_x, tri_2_y - tri_1_y, tri_2_z - tri_1_z)
+    local c2_x, c2_y, c2_z = fastCrossProduct(itx_x - tri_2_x, itx_y - tri_2_y, itx_z - tri_2_z, tri_0_x - tri_2_x, tri_0_y - tri_2_y, tri_0_z - tri_2_z)
+    if  fastDotProduct(c0_x, c0_y, c0_z, n_x, n_y, n_z) <= 0
+    and fastDotProduct(c1_x, c1_y, c1_z, n_x, n_y, n_z) <= 0
+    and fastDotProduct(c2_x, c2_y, c2_z, n_x, n_y, n_z) <= 0 then
+        n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+        return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
+    end
+
+    -- itx is outside triangle
+    -- find points on all three line segments that are closest to itx
+    -- if distance between itx and one of these three closest points is in range, there is an intersection
+    local line1_x, line1_y, line1_z = closestPointOnLineSegment(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, src_x, src_y, src_z)
+    local dist = (src_x - line1_x)^2 + (src_y - line1_y)^2 + (src_z - line1_z)^2
+    local smallestDist = dist
+    itx_x, itx_y, itx_z = line1_x, line1_y, line1_z
+
+    local line2_x, line2_y, line2_z = closestPointOnLineSegment(tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z)
+    local dist = (src_x - line2_x)^2 + (src_y - line2_y)^2 + (src_z - line2_z)^2
+    if smallestDist and dist < smallestDist then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line2_x, line2_y, line2_z
+    end
+
+    local line3_x, line3_y, line3_z = closestPointOnLineSegment(tri_2_x, tri_2_y, tri_2_z, tri_0_x, tri_0_y, tri_0_z, src_x, src_y, src_z)
+    local dist = (src_x - line3_x)^2 + (src_y - line3_y)^2 + (src_z - line3_z)^2
+    if smallestDist and dist < smallestDist then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line3_x, line3_y, line3_z
+    end
+
+    if smallestDist then
+        n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+        return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
+    end
+end
+
 
 -- generate an axis-aligned bounding box
 -- very useful for less precise collisions, like hitboxes
@@ -149,25 +324,9 @@ function collisions:rayIntersectionAABB(src_1, src_2, src_3, dir_1, dir_2, dir_3
 	return tmin, where_1, where_2, where_3
 end
 
--- model - ray intersection
--- based off of triangle - ray collision from excessive's CPML library
--- does a triangle - ray collision for every face in the model to find the shortest collision
---
--- returns the distane from source point to collision point,
--- the x,y,z coordinates of the collision point,
--- and the x,y,z of the surface normal of the triangle that was hit
---
--- NOTE: ignores rotation!
---
--- sources:
---     https://github.com/excessive/cpml/blob/master/modules/intersect.lua
---     http://www.lighthouse3d.com/tutorials/maths/ray-triangle-intersection/
-local abs = math.abs
-local tiny = 2.2204460492503131e-16 -- the smallest possible value for a double, "double epsilon"
-function collisions:rayIntersection(src_1, src_2, src_3, dir_1, dir_2, dir_3)
+function collisions:rayIntersection(src_x, src_y, src_z, dir_x, dir_y, dir_z)
     -- declare the variables that will be returned by the function
-    local finalLength, where_x, where_y, where_z
-    local norm_x, norm_y, norm_z
+    local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
 
     -- cache references to this model's properties for efficiency
     local translation_x = self.translation[1]
@@ -181,59 +340,34 @@ function collisions:rayIntersection(src_1, src_2, src_3, dir_1, dir_2, dir_3)
     for v=1, #verts, 3 do
         -- do a dot product to check if this face is a backface
         -- if this is a backface, don't check it for collision
-        if fastDotProduct(verts[v][6]*scale_x,verts[v][7]*scale_y,verts[v][8]*scale_z, dir_1,dir_2,dir_3) < 0 then
-            -- cache these variables for efficiency
-            local tri_1_1 = verts[v][1]*scale_x + translation_x
-            local tri_1_2 = verts[v][2]*scale_y + translation_y
-            local tri_1_3 = verts[v][3]*scale_z + translation_z
-            local tri_2_1 = verts[v+1][1]*scale_x + translation_x
-            local tri_2_2 = verts[v+1][2]*scale_y + translation_y
-            local tri_2_3 = verts[v+1][3]*scale_z + translation_z
-            local tri_3_1 = verts[v+2][1]*scale_x + translation_x
-            local tri_3_2 = verts[v+2][2]*scale_y + translation_y
-            local tri_3_3 = verts[v+2][3]*scale_z + translation_z
-            local e11,e12,e13 = fastSubtract(tri_2_1,tri_2_2,tri_2_3, tri_1_1,tri_1_2,tri_1_3)
-            local e21,e22,e23 = fastSubtract(tri_3_1,tri_3_2,tri_3_3, tri_1_1,tri_1_2,tri_1_3)
-            local h1,h2,h3 = fastCrossProduct(dir_1,dir_2,dir_3, e21,e22,e23)
-            local a = fastDotProduct(h1,h2,h3, e11,e12,e13)
+        if fastDotProduct(verts[v][6]*scale_x,verts[v][7]*scale_y,verts[v][8]*scale_z, dir_x,dir_y,dir_z) < 0 then
+            local length, temp_where_x, temp_where_y, temp_where_z, temp_norm_x, temp_norm_y, temp_norm_z = triangleRay(
+                src_x,
+                src_y,
+                src_z,
+                dir_x,
+                dir_y,
+                dir_z,
+                verts[v][1]*scale_x + translation_x,
+                verts[v][2]*scale_y + translation_y,
+                verts[v][3]*scale_z + translation_z,
+                verts[v+1][1]*scale_x + translation_x,
+                verts[v+1][2]*scale_y + translation_y,
+                verts[v+1][3]*scale_z + translation_z,
+                verts[v+2][1]*scale_x + translation_x,
+                verts[v+2][2]*scale_y + translation_y,
+                verts[v+2][3]*scale_z + translation_z
+            )
 
-            -- if a is too close to 0, ray does not intersect triangle
-            if abs(a) <= tiny then
-                goto after_intersection_test
+            if length and (not finalLength or length < finalLength) then
+                finalLength = length
+                where_x = temp_where_x
+                where_y = temp_where_y
+                where_z = temp_where_z
+                norm_x = temp_norm_x
+                norm_y = temp_norm_y
+                norm_z = temp_norm_z
             end
-
-            local s1,s2,s3 = fastSubtract(src_1,src_2,src_3, tri_1_1,tri_1_2,tri_1_3)
-            local u = fastDotProduct(s1,s2,s3, h1,h2,h3) / a
-
-            -- ray does not intersect triangle
-            if u < 0 or u > 1 then
-                goto after_intersection_test
-            end
-
-            local q1,q2,q3 = fastCrossProduct(s1,s2,s3, e11,e12,e13)
-            local v = fastDotProduct(dir_1,dir_2,dir_3, q1,q2,q3) / a
-
-            -- ray does not intersect triangle
-            if v < 0 or u + v > 1 then
-                goto after_intersection_test
-            end
-
-            -- at this stage we can compute t to find out where
-            -- the intersection point is on the line
-            local thisLength = fastDotProduct(q1,q2,q3, e21,e22,e23) / a
-
-            -- if hit this triangle and it's closer than any other hit triangle
-            if thisLength >= tiny and (not finalLength or thisLength < finalLength) then
-                finalLength = thisLength
-                where_x = src_1 + dir_1*thisLength
-                where_y = src_2 + dir_2*thisLength
-                where_z = src_3 + dir_3*thisLength
-                
-                -- store the surface normal of the triangle the ray collided with
-                norm_x, norm_y, norm_z = fastCrossProduct(e11,e12,e13, e21,e22,e23)
-            end
-
-            ::after_intersection_test::
         end
     end
 
@@ -241,76 +375,6 @@ function collisions:rayIntersection(src_1, src_2, src_3, dir_1, dir_2, dir_3)
         norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
     end
     return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
-end
-
-local function closestPointOnLineSegment(a_x, a_y, a_z, b_x, b_y, b_z, x,y,z)
-    local ab_x, ab_y, ab_z = b_x - a_x, b_y - a_y, b_z - a_z
-    local t = fastDotProduct(x - a_x, y - a_y, z - a_z, ab_x, ab_y, ab_z) / (ab_x^2 + ab_y^2 + ab_z^2)
-    t = math.min(1, math.max(0, t))
-    return a_x + t*ab_x, a_y + t*ab_y, a_z + t*ab_z
-end
-
--- detects a collision between a triangle and a sphere
--- this code is terrible and unreadable as all vectors are represented using three variables
--- no tables are used for efficiency, no mallocs required
---
--- sources:
---     https://wickedengine.net/2020/04/26/capsule-collision-detection/
-local function triangleSphere(src_x, src_y, src_z, radius, p0_x, p0_y, p0_z, p1_x, p1_y, p1_z, p2_x, p2_y, p2_z)
-    local side1_x, side1_y, side1_z = p1_x - p0_x, p1_y - p0_y, p1_z - p0_z
-    local side2_x, side2_y, side2_z = p2_x - p0_x, p2_y - p0_y, p2_z - p0_z
-    local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
-    local dist = fastDotProduct(src_x - p0_x, src_y - p0_y, src_z - p0_z, n_x, n_y, n_z)
-
-    -- collision not possible, just return
-    if dist < -radius or dist > radius then
-        return
-    end
-
-    -- itx stands for intersection
-    local itx_x, itx_y, itx_z = src_x - n_x * dist, src_y - n_y * dist, src_z - n_z * dist
-
-    -- determine whether itx is inside the triangle
-    -- project it onto the triangle and return if this is the case
-    local c0_x, c0_y, c0_z = fastCrossProduct(itx_x - p0_x, itx_y - p0_y, itx_z - p0_z, p1_x - p0_x, p1_y - p0_y, p1_z - p0_z)
-    local c1_x, c1_y, c1_z = fastCrossProduct(itx_x - p1_x, itx_y - p1_y, itx_z - p1_z, p2_x - p1_x, p2_y - p1_y, p2_z - p1_z)
-    local c2_x, c2_y, c2_z = fastCrossProduct(itx_x - p2_x, itx_y - p2_y, itx_z - p2_z, p0_x - p2_x, p0_y - p2_y, p0_z - p2_z)
-    if  fastDotProduct(c0_x, c0_y, c0_z, n_x, n_y, n_z) <= 0
-    and fastDotProduct(c1_x, c1_y, c1_z, n_x, n_y, n_z) <= 0
-    and fastDotProduct(c2_x, c2_y, c2_z, n_x, n_y, n_z) <= 0 then
-        return fastMagnitude(src_x - itx_x, src_y - itx_y, src_z - itx_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
-    end
-
-    -- itx is outside triangle
-    -- find points on all three line segments that are closest to itx
-    -- if distance between itx and one of these three closest points is in range, there is an intersection
-    local radiussq = radius * radius
-    local smallestDist
-
-    local line1_x, line1_y, line1_z = closestPointOnLineSegment(p0_x, p0_y, p0_z, p1_x, p1_y, p1_z, src_x, src_y, src_z)
-    local dist = (src_x - line1_x)^2 + (src_y - line1_y)^2 + (src_z - line1_z)^2
-    if dist < radiussq then
-        smallestDist = dist
-        itx_x, itx_y, itx_z = line1_x, line1_y, line1_z
-    end
-
-    local line2_x, line2_y, line2_z = closestPointOnLineSegment(p1_x, p1_y, p1_z, p2_x, p2_y, p2_z, src_x, src_y, src_z)
-    local dist = (src_x - line2_x)^2 + (src_y - line2_y)^2 + (src_z - line2_z)^2
-    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
-        smallestDist = dist
-        itx_x, itx_y, itx_z = line2_x, line2_y, line2_z
-    end
-
-    local line3_x, line3_y, line3_z = closestPointOnLineSegment(p2_x, p2_y, p2_z, p0_x, p0_y, p0_z, src_x, src_y, src_z)
-    local dist = (src_x - line3_x)^2 + (src_y - line3_y)^2 + (src_z - line3_z)^2
-    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
-        smallestDist = dist
-        itx_x, itx_y, itx_z = line3_x, line3_y, line3_z
-    end
-
-    if smallestDist then
-        return fastMagnitude(src_x - itx_x, src_y - itx_y, src_z - itx_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
-    end
 end
 
 function collisions:sphereIntersection(src_1, src_2, src_3, radius)
@@ -333,6 +397,53 @@ function collisions:sphereIntersection(src_1, src_2, src_3, radius)
             src_2,
             src_3,
             radius,
+            verts[v][1]*scale_x + translation_x,
+            verts[v][2]*scale_y + translation_y,
+            verts[v][3]*scale_z + translation_z,
+            verts[v+1][1]*scale_x + translation_x,
+            verts[v+1][2]*scale_y + translation_y,
+            verts[v+1][3]*scale_z + translation_z,
+            verts[v+2][1]*scale_x + translation_x,
+            verts[v+2][2]*scale_y + translation_y,
+            verts[v+2][3]*scale_z + translation_z
+        )
+
+        if length and (not finalLength or length < finalLength) then
+            finalLength = length
+            where_x = wx
+            where_y = wy
+            where_z = wz
+            norm_x = nx
+            norm_y = ny
+            norm_z = nz
+        end
+    end
+
+    if finalLength then
+        norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
+    end
+    return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
+end
+
+function collisions:closestPoint(src_1, src_2, src_3)
+    -- declare the variables that will be returned by the function
+    local finalLength, where_x, where_y, where_z
+    local norm_x, norm_y, norm_z
+
+    -- cache references to this model's properties for efficiency
+    local translation_x = self.translation[1]
+    local translation_y = self.translation[2]
+    local translation_z = self.translation[3]
+    local scale_x = self.scale[1]
+    local scale_y = self.scale[2]
+    local scale_z = self.scale[3]
+    local verts = self.verts
+
+    for v=1, #verts, 3 do
+        local length, wx,wy,wz, nx,ny,nz = trianglePoint(
+            src_1,
+            src_2,
+            src_3,
             verts[v][1]*scale_x + translation_x,
             verts[v][2]*scale_y + translation_y,
             verts[v][3]*scale_z + translation_z,

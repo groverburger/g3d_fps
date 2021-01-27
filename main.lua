@@ -8,7 +8,7 @@ function love.load()
     Map = g3d.newModel("assets/map.obj", "assets/texture_1.png", {-2, 2.5, -3.5}, nil, {-1,-1,1})
     Mark = g3d.newModel("assets/sphere.obj", "assets/earth.png", nil, nil, {0.1,0.1,0.1})
 
-    --ThePlayer = require("player")(0,0,0)
+    ThePlayer = require("player")(0,0,0)
 end
 
 function love.mousemoved(x,y, dx,dy)
@@ -16,18 +16,17 @@ function love.mousemoved(x,y, dx,dy)
 end
 
 function love.update(dt)
-    --ThePlayer:update(dt)
-    g3d.camera.firstPersonMovement(dt)
+    ThePlayer:update(dt)
+    --g3d.camera.firstPersonMovement(dt)
 end
 
 function love.draw()
     Map:draw()
 
-    local len,x,y,z = Map:sphereIntersection(
+    local len,x,y,z = Map:closestPoint(
         g3d.camera.position[1],
         g3d.camera.position[2],
-        g3d.camera.position[3],
-        1
+        g3d.camera.position[3]
     )
 
     if len then
