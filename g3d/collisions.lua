@@ -5,6 +5,9 @@
 ----------------------------------------------------------------------------------------------------
 -- collision detection functions
 ----------------------------------------------------------------------------------------------------
+--
+-- none of these functions are required for developing 3D games
+-- however these collision functions are very frequently used in 3D games
 
 local collisions = {}
 
@@ -247,19 +250,28 @@ local function closestPointOnLineSegment(a_x, a_y, a_z, b_x, b_y, b_z, x,y,z)
     return a_x + t*ab_x, a_y + t*ab_y, a_z + t*ab_z
 end
 
+-- detects a collision between a triangle and a sphere
+-- this code is terrible and unreadable as all vectors are represented using three variables
+-- no tables are used for efficiency, no mallocs required
+--
+-- sources:
+--     https://wickedengine.net/2020/04/26/capsule-collision-detection/
 local function triangleSphere(src_x, src_y, src_z, radius, p0_x, p0_y, p0_z, p1_x, p1_y, p1_z, p2_x, p2_y, p2_z)
     local side1_x, side1_y, side1_z = p1_x - p0_x, p1_y - p0_y, p1_z - p0_z
     local side2_x, side2_y, side2_z = p2_x - p0_x, p2_y - p0_y, p2_z - p0_z
     local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
     local dist = fastDotProduct(src_x - p0_x, src_y - p0_y, src_z - p0_z, n_x, n_y, n_z)
 
+    -- collision not possible, just return
     if dist < -radius or dist > radius then
-        goto skipTriangleSphere
+        return
     end
 
+    -- itx stands for intersection
     local itx_x, itx_y, itx_z = src_x - n_x * dist, src_y - n_y * dist, src_z - n_z * dist
 
-    -- Now determine whether itx is inside all triangle edges: 
+    -- determine whether itx is inside the triangle
+    -- project it onto the triangle and return if this is the case
     local c0_x, c0_y, c0_z = fastCrossProduct(itx_x - p0_x, itx_y - p0_y, itx_z - p0_z, p1_x - p0_x, p1_y - p0_y, p1_z - p0_z)
     local c1_x, c1_y, c1_z = fastCrossProduct(itx_x - p1_x, itx_y - p1_y, itx_z - p1_z, p2_x - p1_x, p2_y - p1_y, p2_z - p1_z)
     local c2_x, c2_y, c2_z = fastCrossProduct(itx_x - p2_x, itx_y - p2_y, itx_z - p2_z, p0_x - p2_x, p0_y - p2_y, p0_z - p2_z)
@@ -269,40 +281,36 @@ local function triangleSphere(src_x, src_y, src_z, radius, p0_x, p0_y, p0_z, p1_
         return fastMagnitude(src_x - itx_x, src_y - itx_y, src_z - itx_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
     end
 
-    local radiussq = radius * radius -- sphere radius squared
+    -- itx is outside triangle
+    -- find points on all three line segments that are closest to itx
+    -- if distance between itx and one of these three closest points is in range, there is an intersection
+    local radiussq = radius * radius
+    local smallestDist
 
     local line1_x, line1_y, line1_z = closestPointOnLineSegment(p0_x, p0_y, p0_z, p1_x, p1_y, p1_z, src_x, src_y, src_z)
-    local intersects = (src_x - line1_x)^2 + (src_y - line1_y)^2 + (src_z - line1_z)^2 < radiussq
-
-    local line2_x, line2_y, line2_z = closestPointOnLineSegment(p1_x, p1_y, p1_z, p2_x, p2_y, p2_z, src_x, src_y, src_z)
-    intersects = intersects or ((src_x - line2_x)^2 + (src_y - line2_y)^2 + (src_z - line2_z)^2 < radiussq)
-
-    local line3_x, line3_y, line3_z = closestPointOnLineSegment(p2_x, p2_y, p2_z, p0_x, p0_y, p0_z, src_x, src_y, src_z)
-    intersects = intersects or ((src_x - line3_x)^2 + (src_y - line3_y)^2 + (src_z - line3_z)^2 < radiussq)
-
-    if intersects then
-        local dist_x, dist_y, dist_z = src_x - line1_x, src_y - line1_y, src_z - line1_z
-        local best_distsq = dist_x^2 + dist_y^2 + dist_z^2
-        local itx_x, itx_y, itx_z = line1_x, line1_y, line1_z
-
-        local dist_x, dist_y, dist_z = src_x - line2_x, src_y - line2_y, src_z - line2_z
-        local distsq = dist_x^2 + dist_y^2 + dist_z^2
-        if distsq < best_distsq then
-            best_distsq = distsq
-            local itx_x, itx_y, itx_z = line2_x, line2_y, line2_z
-        end
-
-        local dist_x, dist_y, dist_z = src_x - line3_x, src_y - line3_y, src_z - line3_z
-        local distsq = dist_x^2 + dist_y^2 + dist_z^2
-        if distsq < best_distsq then
-            best_distsq = distsq
-            local itx_x, itx_y, itx_z = line3_x, line3_y, line3_z
-        end
-
-        return fastMagnitude(src_x - itx_x, src_y - itx_y, src_z - itx_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
+    local dist = (src_x - line1_x)^2 + (src_y - line1_y)^2 + (src_z - line1_z)^2
+    if dist < radiussq then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line1_x, line1_y, line1_z
     end
 
-    ::skipTriangleSphere::
+    local line2_x, line2_y, line2_z = closestPointOnLineSegment(p1_x, p1_y, p1_z, p2_x, p2_y, p2_z, src_x, src_y, src_z)
+    local dist = (src_x - line2_x)^2 + (src_y - line2_y)^2 + (src_z - line2_z)^2
+    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line2_x, line2_y, line2_z
+    end
+
+    local line3_x, line3_y, line3_z = closestPointOnLineSegment(p2_x, p2_y, p2_z, p0_x, p0_y, p0_z, src_x, src_y, src_z)
+    local dist = (src_x - line3_x)^2 + (src_y - line3_y)^2 + (src_z - line3_z)^2
+    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
+        smallestDist = dist
+        itx_x, itx_y, itx_z = line3_x, line3_y, line3_z
+    end
+
+    if smallestDist then
+        return fastMagnitude(src_x - itx_x, src_y - itx_y, src_z - itx_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
+    end
 end
 
 function collisions:sphereIntersection(src_1, src_2, src_3, radius)
@@ -320,35 +328,31 @@ function collisions:sphereIntersection(src_1, src_2, src_3, radius)
     local verts = self.verts
 
     for v=1, #verts, 3 do
-        -- do a dot product to check if this face is a backface
-        -- if this is a backface, don't check it for collision
-        --if fastDotProduct(verts[v][6]*scale_x,verts[v][7]*scale_y,verts[v][8]*scale_z, dir_1,dir_2,dir_3) < 0 then
-            local length, wx,wy,wz, nx,ny,nz = triangleSphere(
-                src_1,
-                src_2,
-                src_3,
-                radius,
-                verts[v][1]*scale_x + translation_x,
-                verts[v][2]*scale_y + translation_y,
-                verts[v][3]*scale_z + translation_z,
-                verts[v+1][1]*scale_x + translation_x,
-                verts[v+1][2]*scale_y + translation_y,
-                verts[v+1][3]*scale_z + translation_z,
-                verts[v+2][1]*scale_x + translation_x,
-                verts[v+2][2]*scale_y + translation_y,
-                verts[v+2][3]*scale_z + translation_z
-            )
+        local length, wx,wy,wz, nx,ny,nz = triangleSphere(
+            src_1,
+            src_2,
+            src_3,
+            radius,
+            verts[v][1]*scale_x + translation_x,
+            verts[v][2]*scale_y + translation_y,
+            verts[v][3]*scale_z + translation_z,
+            verts[v+1][1]*scale_x + translation_x,
+            verts[v+1][2]*scale_y + translation_y,
+            verts[v+1][3]*scale_z + translation_z,
+            verts[v+2][1]*scale_x + translation_x,
+            verts[v+2][2]*scale_y + translation_y,
+            verts[v+2][3]*scale_z + translation_z
+        )
 
-            if length and (not finalLength or length < finalLength) then
-                finalLength = length
-                where_x = wx
-                where_y = wy
-                where_z = wz
-                norm_x = nx
-                norm_y = ny
-                norm_z = nz
-            end
-        --end
+        if length and (not finalLength or length < finalLength) then
+            finalLength = length
+            where_x = wx
+            where_y = wy
+            where_z = wz
+            norm_x = nx
+            norm_y = ny
+            norm_z = nz
+        end
     end
 
     if finalLength then

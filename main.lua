@@ -43,4 +43,5 @@ function love.draw()
     end
 
     love.graphics.print("raycast: " .. round(len) .. ", " .. round(x) .. ", " .. round(y) .. ", " .. round(z))
+    love.graphics.print(collectgarbage("count"), 0,100)
 end
