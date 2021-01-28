@@ -121,9 +121,9 @@ function Player:update(dt)
             self.position[1],
             self.position[2],
             self.position[3],
-            self.speed[1]*dt + getSign(self.speed[1])*2,
+            self.speed[1],
             0,
-            self.speed[3]*dt + getSign(self.speed[3])*2
+            self.speed[3]
         )
 
         if not coll or coll > 0.1 then

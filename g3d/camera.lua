@@ -55,15 +55,14 @@ function camera.lookInDirection(x,y,z, directionTowards,pitchTowards)
     fpsController.pitch = pitchTowards or fpsController.pitch
 
     -- convert the direction and pitch into a target point
+
+    -- turn the cos of the pitch into a sign value, either 1, -1, or 0
     local sign = math.cos(fpsController.pitch)
-    if sign > 0 then
-        sign = 1
-    elseif sign < 0 then
-        sign = -1
-    else
-        sign = 0
-    end
-    local cosPitch = sign*math.max(math.abs(math.cos(fpsController.pitch)), 0.001)
+    sign = (sign > 0 and 1) or (sign < 0 and -1) or 0
+
+    -- don't let cosPitch ever hit 0, because weird camera glitches will happen
+    local cosPitch = sign*math.max(math.abs(math.cos(fpsController.pitch)), 0.00001)
+
     camera.target[1] = camera.position[1]+math.sin(fpsController.direction)*cosPitch
     camera.target[2] = camera.position[2]-math.sin(fpsController.pitch)
     camera.target[3] = camera.position[3]+math.cos(fpsController.direction)*cosPitch
@@ -96,24 +95,17 @@ function camera.firstPersonMovement(dt)
     -- collect inputs
     local moveX,moveY = 0,0
     local cameraMoved = false
-    if love.keyboard.isDown("w") then
-        moveY = moveY - 1
-    end
-    if love.keyboard.isDown("a") then
-        moveX = moveX - 1
-    end
-    if love.keyboard.isDown("s") then
-        moveY = moveY + 1
-    end
-    if love.keyboard.isDown("d") then
-        moveX = moveX + 1
-    end
+    local speed = 9
+    if love.keyboard.isDown("w") then moveY = moveY - 1 end
+    if love.keyboard.isDown("a") then moveX = moveX - 1 end
+    if love.keyboard.isDown("s") then moveY = moveY + 1 end
+    if love.keyboard.isDown("d") then moveX = moveX + 1 end
     if love.keyboard.isDown("space") then
-        camera.position[2] = camera.position[2] - 0.15*dt*60
+        camera.position[2] = camera.position[2] - speed*dt
         cameraMoved = true
     end
     if love.keyboard.isDown("lshift") then
-        camera.position[2] = camera.position[2] + 0.15*dt*60
+        camera.position[2] = camera.position[2] + speed*dt
         cameraMoved = true
     end
 
@@ -121,7 +113,6 @@ function camera.firstPersonMovement(dt)
     -- also to make the player not move faster in diagonal directions
     if moveX ~= 0 or moveY ~= 0 then
         local angle = math.atan2(moveY,moveX)
-        local speed = 9
         local directionX,directionZ = math.cos(fpsController.direction + angle)*speed*dt, math.sin(fpsController.direction + angle + math.pi)*speed*dt
 
         camera.position[1] = camera.position[1] + directionX
@@ -132,7 +123,7 @@ function camera.firstPersonMovement(dt)
     -- update the camera's in the shader
     -- only if the camera moved, for a slight performance benefit
     if cameraMoved then
-        camera.lookInDirection(camera.position[1],camera.position[2],camera.position[3], fpsController.direction,fpsController.pitch)
+        camera.lookInDirection()
     end
 end
 

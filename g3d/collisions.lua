@@ -49,7 +49,15 @@ end
 --     https://github.com/excessive/cpml/blob/master/modules/intersect.lua
 --     http://www.lighthouse3d.com/tutorials/maths/ray-triangle-intersection/
 local tiny = 2.2204460492503131e-16 -- the smallest possible value for a double, "double epsilon"
-local function triangleRay(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z, dir_x, dir_y, dir_z)
+local function triangleRay(
+        tri_0_x, tri_0_y, tri_0_z,
+        tri_1_x, tri_1_y, tri_1_z,
+        tri_2_x, tri_2_y, tri_2_z,
+        n_x, n_y, n_z,
+        src_x, src_y, src_z,
+        dir_x, dir_y, dir_z
+    )
+
     -- cache these variables for efficiency
     local e11,e12,e13 = fastSubtract(tri_1_x,tri_1_y,tri_1_z, tri_0_x,tri_0_y,tri_0_z)
     local e21,e22,e23 = fastSubtract(tri_2_x,tri_2_y,tri_2_z, tri_0_x,tri_0_y,tri_0_z)
@@ -83,9 +91,9 @@ local function triangleRay(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z,
 
     -- if hit this triangle and it's closer than any other hit triangle
     if thisLength >= tiny and (not finalLength or thisLength < finalLength) then
-        local norm_x, norm_y, norm_z = fastCrossProduct(e11,e12,e13, e21,e22,e23)
+        --local norm_x, norm_y, norm_z = fastCrossProduct(e11,e12,e13, e21,e22,e23)
 
-        return thisLength, src_x + dir_x*thisLength, src_y + dir_y*thisLength, src_z + dir_z*thisLength, norm_x, norm_y, norm_z
+        return thisLength, src_x + dir_x*thisLength, src_y + dir_y*thisLength, src_z + dir_z*thisLength, n_x,n_y,n_z
     end
 end
 
@@ -95,10 +103,20 @@ end
 --
 -- sources:
 --     https://wickedengine.net/2020/04/26/capsule-collision-detection/
-local function triangleSphere(tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z, radius, tri_0_x)
+local function triangleSphere(
+        tri_0_x, tri_0_y, tri_0_z,
+        tri_1_x, tri_1_y, tri_1_z,
+        tri_2_x, tri_2_y, tri_2_z,
+        tri_n_x, tri_n_y, tri_n_z,
+        src_x, src_y, src_z, radius
+    )
+
+    -- recalculate surface normal of this triangle
     local side1_x, side1_y, side1_z = tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z
     local side2_x, side2_y, side2_z = tri_2_x - tri_0_x, tri_2_y - tri_0_y, tri_2_z - tri_0_z
     local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
+
+    -- distance from src to a vertex on the triangle
     local dist = fastDotProduct(src_x - tri_0_x, src_y - tri_0_y, src_z - tri_0_z, n_x, n_y, n_z)
 
     -- collision not possible, just return
@@ -118,6 +136,9 @@ local function triangleSphere(tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2
     and fastDotProduct(c1_x, c1_y, c1_z, n_x, n_y, n_z) <= 0
     and fastDotProduct(c2_x, c2_y, c2_z, n_x, n_y, n_z) <= 0 then
         n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+        if n_x == 0 and n_y == 0 and n_z == 0 then
+            return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, tri_n_x, tri_n_y, tri_n_z
+        end
         return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
     end
 
@@ -150,6 +171,9 @@ local function triangleSphere(tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2
 
     if smallestDist then
         n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+        if n_x == 0 and n_y == 0 and n_z == 0 then
+            return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, tri_n_x, tri_n_y, tri_n_z
+        end
         return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
     end
 end
@@ -160,10 +184,20 @@ end
 --
 -- sources:
 --     https://wickedengine.net/2020/04/26/capsule-collision-detection/
-local function trianglePoint(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z)
+local function trianglePoint(
+        tri_0_x, tri_0_y, tri_0_z,
+        tri_1_x, tri_1_y, tri_1_z,
+        tri_2_x, tri_2_y, tri_2_z,
+        n_x, n_y, n_z,
+        src_x, src_y, src_z
+    )
+
+    -- recalculate surface normal of this triangle
     local side1_x, side1_y, side1_z = tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z
     local side2_x, side2_y, side2_z = tri_2_x - tri_0_x, tri_2_y - tri_0_y, tri_2_z - tri_0_z
     local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
+
+    -- distance from src to a vertex on the triangle
     local dist = fastDotProduct(src_x - tri_0_x, src_y - tri_0_y, src_z - tri_0_z, n_x, n_y, n_z)
 
     -- itx stands for intersection
@@ -209,6 +243,62 @@ local function trianglePoint(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_
     end
 end
 
+local function triangleCapsule(
+        tri_0_x, tri_0_y, tri_0_z,
+        tri_1_x, tri_1_y, tri_1_z,
+        tri_2_x, tri_2_y, tri_2_z,
+        n_x, n_y, n_z,
+        tip_x, tip_y, tip_z,
+        base_x, base_y, base_z,
+        a_x, a_y, a_z,
+        b_x, b_y, b_z,
+        capn_x, capn_y, capn_z,
+        radius
+    )
+
+    -- find the normal of this triangle
+    -- tbd if necessary, this sometimes fixes weird edgecases
+    local side1_x, side1_y, side1_z = tri_1_x - tri_0_x, tri_1_y - tri_0_y, tri_1_z - tri_0_z
+    local side2_x, side2_y, side2_z = tri_2_x - tri_0_x, tri_2_y - tri_0_y, tri_2_z - tri_0_z
+    local n_x, n_y, n_z = fastNormalize(fastCrossProduct(side1_x, side1_y, side1_z, side2_x, side2_y, side2_z))
+
+    local dotOfNormals = math.abs(fastDotProduct(n_x, n_y, n_z, capn_x, capn_y, capn_z))
+
+    -- default reference point to an arbitrary point on the triangle
+    -- for when dotOfNormals is 0, because then the capsule is parallel to the triangle
+    local ref_x, ref_y, ref_z = tri_0_x, tri_0_y, tri_0_z
+
+    if dotOfNormals > 0 then
+        -- capsule is not parallel to the triangle's plane
+        -- find where the capsule's normal vector intersects the triangle's plane
+        local t = fastDotProduct(n_x, n_y, n_z, (tri_0_x - base_x) / dotOfNormals, (tri_0_y - base_y) / dotOfNormals, (tri_0_z - base_z) / dotOfNormals)
+        local plane_itx_x, plane_itx_y, plane_itx_z = base_x + capn_x*t, base_y + capn_y*t, base_z + capn_z*t
+        local _
+
+        -- then clamp that plane intersect point onto the triangle itself
+        -- this is the new reference point
+        _, ref_x, ref_y, ref_z = trianglePoint(
+            tri_0_x, tri_0_y, tri_0_z,
+            tri_1_x, tri_1_y, tri_1_z,
+            tri_2_x, tri_2_y, tri_2_z,
+            n_x, n_y, n_z,
+            plane_itx_x, plane_itx_y, plane_itx_z
+        )
+    end
+
+    -- find the closest point on the capsule line to the reference point
+    local c_x, c_y, c_z = closestPointOnLineSegment(a_x, a_y, a_z, b_x, b_y, b_z, ref_x, ref_y, ref_z)
+
+    -- do a sphere cast from that closest point to the triangle and return the result
+    return triangleSphere(
+        tri_0_x, tri_0_y, tri_0_z,
+        tri_1_x, tri_1_y, tri_1_z,
+        tri_2_x, tri_2_y, tri_2_z,
+        n_x, n_y, n_z,
+        c_x, c_y, c_z, radius
+    )
+end
+
 local function findClosest(self, func, ...)
     -- declare the variables that will be returned by the function
     local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
@@ -223,8 +313,14 @@ local function findClosest(self, func, ...)
     local verts = self.verts
 
     for v=1, #verts, 3 do
-        -- do a dot product to check if this face is a backface
-        -- if this is a backface, don't check it for collision
+        -- apply the function given with the arguments given
+        -- also supply the points of the current triangle
+        local n_x, n_y, n_z = fastNormalize(
+            verts[v][6]*scale_x,
+            verts[v][7]*scale_x,
+            verts[v][8]*scale_x
+        )
+
         local length, wx,wy,wz, nx,ny,nz = func(
             verts[v][1]*scale_x + translation_x,
             verts[v][2]*scale_y + translation_y,
@@ -235,9 +331,15 @@ local function findClosest(self, func, ...)
             verts[v+2][1]*scale_x + translation_x,
             verts[v+2][2]*scale_y + translation_y,
             verts[v+2][3]*scale_z + translation_z,
+            n_x,
+            n_y,
+            n_z,
             ...
         )
 
+        -- if something was hit
+        -- and either the finalLength is not yet defined or the new length is closer
+        -- then update the collision information
         if length and (not finalLength or length < finalLength) then
             finalLength = length
             where_x = wx
@@ -270,50 +372,25 @@ function collisions:closestPoint(src_x, src_y, src_z)
     return findClosest(self, trianglePoint, src_x, src_y, src_z)
 end
 
-function collisions:capsuleIntersection(src_1, src_2, src_3)
-    -- declare the variables that will be returned by the function
-    local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
+function collisions:capsuleIntersection(tip_x, tip_y, tip_z, base_x, base_y, base_z, radius)
+    -- the normal vector coming out the tip of the capsule
+    local norm_x, norm_y, norm_z = fastNormalize(tip_x - base_x, tip_y - base_y, tip_z - base_z)
 
-    -- cache references to this model's properties for efficiency
-    local translation_x = self.translation[1]
-    local translation_y = self.translation[2]
-    local translation_z = self.translation[3]
-    local scale_x = self.scale[1]
-    local scale_y = self.scale[2]
-    local scale_z = self.scale[3]
-    local verts = self.verts
+    -- the base and tip, inset by the radius
+    -- these two coordinates are the actual extent of the capsule sphere line
+    local a_x, a_y, a_z = base_x + norm_x*radius, base_y + norm_y*radius, base_z + norm_z*radius
+    local b_x, b_y, b_z = tip_x - norm_x*radius, tip_y - norm_y*radius, tip_z - norm_z*radius
 
-    for v=1, #verts, 3 do
-        local length, wx,wy,wz, nx,ny,nz = trianglePoint(
-            src_1,
-            src_2,
-            src_3,
-            verts[v][1]*scale_x + translation_x,
-            verts[v][2]*scale_y + translation_y,
-            verts[v][3]*scale_z + translation_z,
-            verts[v+1][1]*scale_x + translation_x,
-            verts[v+1][2]*scale_y + translation_y,
-            verts[v+1][3]*scale_z + translation_z,
-            verts[v+2][1]*scale_x + translation_x,
-            verts[v+2][2]*scale_y + translation_y,
-            verts[v+2][3]*scale_z + translation_z
-        )
-
-        if length and (not finalLength or length < finalLength) then
-            finalLength = length
-            where_x = wx
-            where_y = wy
-            where_z = wz
-            norm_x = nx
-            norm_y = ny
-            norm_z = nz
-        end
-    end
-
-    if finalLength then
-        norm_x, norm_y, norm_z = fastNormalize(norm_x, norm_y, norm_z)
-    end
-    return finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
+    return findClosest(
+        self,
+        triangleCapsule,
+        tip_x, tip_y, tip_z,
+        base_x, base_y, base_z,
+        a_x, a_y, a_z,
+        b_x, b_y, b_z,
+        norm_x, norm_y, norm_z,
+        radius
+    )
 end
 
 ----------------------------------------------------------------------------------------------------
