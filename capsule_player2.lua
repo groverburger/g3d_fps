@@ -10,6 +10,7 @@ local function instantiate(x,y,z)
     }
     self.position = setmetatable({x,y,z}, vectorMeta)
     self.speed = setmetatable({0,0,0}, vectorMeta)
+    self.lastSpeed = setmetatable({0,0,0}, vectorMeta)
     self.normal = setmetatable({0,1,0}, vectorMeta)
     self.radius = 0.2
     self.onGround = false
@@ -30,11 +31,12 @@ end
 local accumulator = 0
 local timestep = 1/60
 function Player:update(dt)
-    accumulator = accumulator + dt
-    while accumulator > timestep do
-        accumulator = accumulator - timestep
+    --accumulator = accumulator + dt
+    --while accumulator > timestep do
+        --accumulator = accumulator - timestep
         self:fixedUpdate(timestep)
-    end
+    --end
+    g3d.camera.lookInDirection()
 end
 
 function Player:moveAndSlide(mx,my,mz)
@@ -53,7 +55,7 @@ function Player:moveAndSlide(mx,my,mz)
     self.position[2] = self.position[2] + my
     self.position[3] = self.position[3] + mz
 
-    local ignoreSlopes = ny and ny < -0.5
+    local ignoreSlopes = ny and ny < -0.7
     if len then
         local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
 
@@ -81,34 +83,30 @@ function Player:moveAndSlide(mx,my,mz)
         --print("rejection: " .. tostring(-ny * (len - self.radius + tiny)))
     end
 
-    return mx, my, mz
+    return mx, my, mz, nx, ny, nz
 end
 
 function Player:fixedUpdate(dt)
-    --print("-----")
     -- collect inputs
     local moveX,moveY = 0,0
     local speed = 0.02
     local friction = 0.75
+    local gravity = 0.01
 
     -- friction
     self.speed[1] = self.speed[1] * friction
     self.speed[3] = self.speed[3] * friction
 
     -- gravity
-    self.speed[2] = self.speed[2] + 0.01
-
-    --print("speed: " .. round(self.speed[2]))
-    --print("position: " .. round(self.position[2]))
+    self.speed[2] = self.speed[2] + gravity
 
     if love.keyboard.isDown("w") then moveY = moveY - 1 end
     if love.keyboard.isDown("a") then moveX = moveX - 1 end
     if love.keyboard.isDown("s") then moveY = moveY + 1 end
     if love.keyboard.isDown("d") then moveX = moveX + 1 end
     if love.keyboard.isDown("space") and self.onGround then
-        self.speed[2] = self.speed[2] - 0.1
+        self.speed[2] = self.speed[2] - 0.125
     end
-
 
     -- do some trigonometry on the inputs to make movement relative to camera's direction
     -- also to make the player not move faster in diagonal directions
@@ -121,17 +119,18 @@ function Player:fixedUpdate(dt)
         self.speed[3] = self.speed[3] + directionZ
     end
 
-    local _
-    _, self.speed[2], _ = self:moveAndSlide(0, self.speed[2], 0)
-    self.speed[1], _ , self.speed[3] = self:moveAndSlide(self.speed[1], 0, self.speed[3])
+    -- do the movement
+    local _, nx, ny, nz
+    _, self.speed[2], _, nx, ny, nz = self:moveAndSlide(0, self.speed[2], 0)
+    self.onGround = ny and ny < -0.7
+    self.speed[1], _ , self.speed[3], nx, ny, nz = self:moveAndSlide(self.speed[1], 0, self.speed[3])
 
-    --self.onGround = len and ny < -0.1 or false
-
-    --print("speed: " .. round(self.speed[2]))
-    --print("position: " .. round(self.position[2]))
+    -- copy speed into lastSpeed
+    for i,v in ipairs(self.speed) do
+        self.lastSpeed[i] = v
+    end
 
     g3d.camera.position = self.position
-    g3d.camera.lookInDirection()
 end
 
 return instantiate
