@@ -25,6 +25,7 @@ end
 
 function love.keypressed(k)
     if k == "e" then ActivePlayer = not ActivePlayer end
+    if k == "escape" then love.event.push("quit") end
 end
 
 function listPrint(x,y, ...)
