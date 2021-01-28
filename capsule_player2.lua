@@ -5,10 +5,14 @@ local vectors = require "g3d/vectors"
 
 function Player:new(x,y,z)
     local self = setmetatable({}, Player)
-    self.position = {x,y,z}
-    self.speed = {0,0,0}
-    self.normal = {0,1,0}
+    local vectorMeta = {
+        __tostring = vectors.tostring,
+    }
+    self.position = setmetatable({x,y,z}, vectorMeta)
+    self.speed = setmetatable({0,0,0}, vectorMeta)
+    self.normal = setmetatable({0,1,0}, vectorMeta)
     self.radius = 0.2
+    self.onGround = false
     return self
 end
 
@@ -35,9 +39,10 @@ end
 
 local tiny = 2.2204460492503131e-16
 function Player:fixedUpdate(dt)
+    --print("-----")
     -- collect inputs
     local moveX,moveY = 0,0
-    local speed = 0.01
+    local speed = 0.02
     local friction = 0.75
 
     -- friction
@@ -47,12 +52,15 @@ function Player:fixedUpdate(dt)
     -- gravity
     self.speed[2] = self.speed[2] + 0.01
 
+    --print("speed: " .. round(self.speed[2]))
+    --print("position: " .. round(self.position[2]))
+
     if love.keyboard.isDown("w") then moveY = moveY - 1 end
     if love.keyboard.isDown("a") then moveX = moveX - 1 end
     if love.keyboard.isDown("s") then moveY = moveY + 1 end
     if love.keyboard.isDown("d") then moveX = moveX + 1 end
-    if love.keyboard.isDown("space") then
-        self.speed[2] = self.speed[2] - 0.05
+    if love.keyboard.isDown("space") and self.onGround then
+        self.speed[2] = self.speed[2] - 0.1
     end
 
 
@@ -78,36 +86,34 @@ function Player:fixedUpdate(dt)
         0.2
     )
 
-    if len then
-        local mx = self.speed[1]
-        local my = self.speed[2]
-        local mz = self.speed[3]
+    self.position[1] = self.position[1] + self.speed[1]
+    self.position[2] = self.position[2] + self.speed[2]
+    self.position[3] = self.position[3] + self.speed[3]
 
-        local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
+    if len then
+        local speedLength = math.sqrt(self.speed[1]^2 + self.speed[2]^2 + self.speed[3]^2)
 
         if speedLength > 0 then
-            local speedNormalized = {mx / speedLength, my / speedLength, mz / speedLength}
+            local speedNormalized = {self.speed[1] / speedLength, self.speed[2] / speedLength, self.speed[3] / speedLength}
             local dot = vectors.dotProduct(speedNormalized, {nx, ny, nz})
             local undesiredMotion = {nx * dot, ny * dot, nz * dot}
 
-            mx = (speedNormalized[1] - undesiredMotion[1]) * speedLength
-            my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
-            mz = (speedNormalized[3] - undesiredMotion[3]) * speedLength
+            self.speed[1] = (speedNormalized[1] - undesiredMotion[1]) * speedLength
+            self.speed[2] = (speedNormalized[2] - undesiredMotion[2]) * speedLength
+            self.speed[3] = (speedNormalized[3] - undesiredMotion[3]) * speedLength
         end
 
         -- rejections
         self.position[1] = self.position[1] - nx * (len - self.radius + tiny)
         self.position[2] = self.position[2] - ny * (len - self.radius + tiny)
         self.position[3] = self.position[3] - nz * (len - self.radius + tiny)
-
-        self.speed[1] = mx
-        self.speed[2] = my
-        self.speed[3] = mz
+        --print("rejection: " .. tostring(-ny * (len - self.radius + tiny)))
     end
 
-    self.position[1] = self.position[1] + self.speed[1]
-    self.position[2] = self.position[2] + self.speed[2]
-    self.position[3] = self.position[3] + self.speed[3]
+    self.onGround = len and ny < -0.1 or false
+
+    --print("speed: " .. round(self.speed[2]))
+    --print("position: " .. round(self.position[2]))
 
     g3d.camera.position = self.position
     g3d.camera.lookInDirection()

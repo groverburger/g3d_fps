@@ -150,21 +150,21 @@ local function triangleSphere(
 
     local line1_x, line1_y, line1_z = closestPointOnLineSegment(tri_0_x, tri_0_y, tri_0_z, tri_1_x, tri_1_y, tri_1_z, src_x, src_y, src_z)
     local dist = (src_x - line1_x)^2 + (src_y - line1_y)^2 + (src_z - line1_z)^2
-    if dist < radiussq then
+    if dist <= radiussq then
         smallestDist = dist
         itx_x, itx_y, itx_z = line1_x, line1_y, line1_z
     end
 
     local line2_x, line2_y, line2_z = closestPointOnLineSegment(tri_1_x, tri_1_y, tri_1_z, tri_2_x, tri_2_y, tri_2_z, src_x, src_y, src_z)
     local dist = (src_x - line2_x)^2 + (src_y - line2_y)^2 + (src_z - line2_z)^2
-    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
+    if (smallestDist and dist < smallestDist or not smallestDist) and dist <= radiussq then
         smallestDist = dist
         itx_x, itx_y, itx_z = line2_x, line2_y, line2_z
     end
 
     local line3_x, line3_y, line3_z = closestPointOnLineSegment(tri_2_x, tri_2_y, tri_2_z, tri_0_x, tri_0_y, tri_0_z, src_x, src_y, src_z)
     local dist = (src_x - line3_x)^2 + (src_y - line3_y)^2 + (src_z - line3_z)^2
-    if (smallestDist and dist < smallestDist or not smallestDist) and dist < radiussq then
+    if (smallestDist and dist < smallestDist or not smallestDist) and dist <= radiussq then
         smallestDist = dist
         itx_x, itx_y, itx_z = line3_x, line3_y, line3_z
     end

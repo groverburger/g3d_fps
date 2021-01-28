@@ -109,6 +109,6 @@ function love.draw()
     --love.graphics.print("speed: " .. round(ThePlayer.speed[1]) .. ", " .. round(ThePlayer.speed[2]) .. ", " .. round(ThePlayer.speed[3]))
     --love.graphics.print("normal: " .. round(nx) .. ", " .. round(ny) .. ", " .. round(nz), 0, 50)
     --listPrint(0,0, len,x,y,z,nx,ny,nz)
-    listPrint(0,0, ThePlayer.position[1],ThePlayer.position[2],ThePlayer.position[3])
-    listPrint(0,50, ThePlayer.normal[1],ThePlayer.normal[2],ThePlayer.normal[3])
+    --listPrint(0,0, ThePlayer.position[1],ThePlayer.position[2],ThePlayer.position[3])
+    --listPrint(0,50, ThePlayer.normal[1],ThePlayer.normal[2],ThePlayer.normal[3])
 end

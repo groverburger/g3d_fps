@@ -30,4 +30,15 @@ function vectors.crossProduct(a,b)
     }
 end
 
+local function round(number)
+    if number then
+        return math.floor(number*1000 + 0.5)/1000
+    end
+    return "nil"
+end
+
+function vectors.tostring(vector)
+    return "(" .. tostring(round(vector[1])) .. ", " .. tostring(round(vector[2])) .. ", " .. tostring(round(vector[3])) .. ")"
+end
+
 return vectors
