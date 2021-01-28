@@ -39,9 +39,8 @@ function Player:update(dt)
     g3d.camera.lookInDirection()
 end
 
-function Player:moveAndSlide(mx,my,mz)
-    -- capsule
-    local len,x,y,z,nx,ny,nz = Map:capsuleIntersection(
+function Player:collisionTest(mx,my,mz)
+    return Map:capsuleIntersection(
         self.position[1] + mx,
         self.position[2] + my - 0.5,
         self.position[3] + mz,
@@ -50,12 +49,17 @@ function Player:moveAndSlide(mx,my,mz)
         self.position[3] + mz,
         0.2
     )
+end
+
+function Player:moveAndSlide(mx,my,mz)
+    local len,x,y,z,nx,ny,nz = self:collisionTest(mx,my,mz)
 
     self.position[1] = self.position[1] + mx
     self.position[2] = self.position[2] + my
     self.position[3] = self.position[3] + mz
 
     local ignoreSlopes = ny and ny < -0.7
+
     if len then
         local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
 
@@ -122,7 +126,42 @@ function Player:fixedUpdate(dt)
     -- do the movement
     local _, nx, ny, nz
     _, self.speed[2], _, nx, ny, nz = self:moveAndSlide(0, self.speed[2], 0)
+
+    -- ground check
+    local wasOnGround = self.onGround
     self.onGround = ny and ny < -0.7
+
+    -- smoothly walk down slopes
+    if not self.onGround and wasOnGround and self.speed[2] > 0 then
+        local yTest = 0.1
+        local len,x,y,z,nx,ny,nz = self:collisionTest(0,yTest,0)
+        local mx, my, mz = 0,yTest,0
+        if len then
+            --self.position[1] = self.position[1] + mx
+            self.position[2] = self.position[2] + my
+            --self.position[3] = self.position[3] + mz
+            local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
+
+            if speedLength > 0 then
+                local speedNormalized = {mx / speedLength, my / speedLength, mz / speedLength}
+                local dot = vectors.dotProduct(speedNormalized, {nx, ny, nz})
+                local undesiredMotion = {nx * dot, ny * dot, nz * dot}
+
+                -- modify output vector based on normal
+                my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
+                --mx = (speedNormalized[1] - undesiredMotion[1]) * speedLength
+                --mz = (speedNormalized[3] - undesiredMotion[3]) * speedLength
+            end
+
+            -- rejections
+            self.position[2] = self.position[2] - ny * (len - self.radius)
+            --self.position[1] = self.position[1] - nx * (len - self.radius)
+            --self.position[3] = self.position[3] - nz * (len - self.radius)
+            self.speed[2] = 0
+            self.onGround = true
+        end
+    end
+
     self.speed[1], _ , self.speed[3], nx, ny, nz = self:moveAndSlide(self.speed[1], 0, self.speed[3])
 
     -- copy speed into lastSpeed
