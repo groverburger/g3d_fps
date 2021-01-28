@@ -3,6 +3,12 @@ Player.__index = Player
 
 local vectors = require "g3d/vectors"
 
+-- TODO:
+-- on-the-fly stepDownSize calculation based on normal vector of triangle
+-- mario 64 style sub-frames for more precise collision checking
+-- maximum fall speed
+-- delta-time solution
+
 local function instantiate(x,y,z)
     local self = setmetatable({}, Player)
     local vectorMeta = {
@@ -14,6 +20,7 @@ local function instantiate(x,y,z)
     self.normal = setmetatable({0,1,0}, vectorMeta)
     self.radius = 0.2
     self.onGround = false
+    self.stepDownSize = 0.075
     return self
 end
 
@@ -84,7 +91,6 @@ function Player:moveAndSlide(mx,my,mz)
             self.position[1] = self.position[1] - nx * (len - self.radius)
             self.position[3] = self.position[3] - nz * (len - self.radius)
         end
-        --print("rejection: " .. tostring(-ny * (len - self.radius + tiny)))
     end
 
     return mx, my, mz, nx, ny, nz
@@ -123,8 +129,9 @@ function Player:fixedUpdate(dt)
         self.speed[3] = self.speed[3] + directionZ
     end
 
-    -- do the movement
     local _, nx, ny, nz
+
+    -- vertical movement and collision check
     _, self.speed[2], _, nx, ny, nz = self:moveAndSlide(0, self.speed[2], 0)
 
     -- ground check
@@ -133,13 +140,12 @@ function Player:fixedUpdate(dt)
 
     -- smoothly walk down slopes
     if not self.onGround and wasOnGround and self.speed[2] > 0 then
-        local yTest = 0.1
-        local len,x,y,z,nx,ny,nz = self:collisionTest(0,yTest,0)
-        local mx, my, mz = 0,yTest,0
+        local len,x,y,z,nx,ny,nz = self:collisionTest(0,self.stepDownSize,0)
+        local mx, my, mz = 0,self.stepDownSize,0
         if len then
-            --self.position[1] = self.position[1] + mx
+            -- do the position change only if a collision was actually detected
             self.position[2] = self.position[2] + my
-            --self.position[3] = self.position[3] + mz
+
             local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
 
             if speedLength > 0 then
@@ -149,19 +155,16 @@ function Player:fixedUpdate(dt)
 
                 -- modify output vector based on normal
                 my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
-                --mx = (speedNormalized[1] - undesiredMotion[1]) * speedLength
-                --mz = (speedNormalized[3] - undesiredMotion[3]) * speedLength
             end
 
             -- rejections
             self.position[2] = self.position[2] - ny * (len - self.radius)
-            --self.position[1] = self.position[1] - nx * (len - self.radius)
-            --self.position[3] = self.position[3] - nz * (len - self.radius)
             self.speed[2] = 0
             self.onGround = true
         end
     end
 
+    -- wall movement and collision check
     self.speed[1], _ , self.speed[3], nx, ny, nz = self:moveAndSlide(self.speed[1], 0, self.speed[3])
 
     -- copy speed into lastSpeed
