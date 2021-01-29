@@ -4,6 +4,7 @@ Player.__index = Player
 local vectors = require "g3d/vectors"
 
 -- TODO:
+-- jump not full height on slopes
 -- on-the-fly stepDownSize calculation based on normal vector of triangle
 -- mario 64 style sub-frames for more precise collision checking
 -- maximum fall speed
@@ -99,9 +100,10 @@ end
 function Player:fixedUpdate(dt)
     -- collect inputs
     local moveX,moveY = 0,0
-    local speed = 0.02
+    local speed = 0.015
     local friction = 0.75
-    local gravity = 0.01
+    local gravity = 0.005
+    local jump = 1/12
 
     -- friction
     self.speed[1] = self.speed[1] * friction
@@ -115,7 +117,7 @@ function Player:fixedUpdate(dt)
     if love.keyboard.isDown("s") then moveY = moveY + 1 end
     if love.keyboard.isDown("d") then moveX = moveX + 1 end
     if love.keyboard.isDown("space") and self.onGround then
-        self.speed[2] = self.speed[2] - 0.125
+        self.speed[2] = self.speed[2] - jump
     end
 
     -- do some trigonometry on the inputs to make movement relative to camera's direction

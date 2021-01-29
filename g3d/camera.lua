@@ -30,6 +30,20 @@ function camera.getDirectionPitch()
     return fpsController.direction, fpsController.pitch
 end
 
+-- convenient function to return the camera's normalized look vector
+function camera:getLookVector()
+    local vx = camera.target[1] - camera.position[1]
+    local vy = camera.target[2] - camera.position[2]
+    local vz = camera.target[3] - camera.position[3]
+    local length = math.sqrt(vx^2 + vy^2 + vz^2)
+
+    -- make sure not to divide by 0
+    if length > 0 then
+        return vx/length, vy/length, vz/length
+    end
+    return vx,vy,vz
+end
+
 -- give the camera a point to look from and a point to look towards
 function camera.lookAt(x,y,z, xAt,yAt,zAt)
     camera.position[1] = x
@@ -39,7 +53,10 @@ function camera.lookAt(x,y,z, xAt,yAt,zAt)
     camera.target[2] = yAt
     camera.target[3] = zAt
 
-    -- TODO: update fpsController's direction and pitch here
+    -- update the fpsController's direction and pitch based on lookAt
+    local dx,dy,dz = camera:getLookVector()
+    fpsController.direction = math.pi/2 - math.atan2(dz, dx)
+    fpsController.pitch = -math.atan2(dy, math.sqrt(dx^2 + dz^2))
 
     -- update the camera in the shader
     camera.updateViewMatrix()

@@ -10,7 +10,6 @@ function love.load()
     Mark = g3d.newModel("assets/sphere.obj", "assets/earth.png", nil, nil, {0.1,0.1,0.1})
     Background = g3d.newModel("assets/sphere.obj", "assets/starfield.png", {0,0,0}, nil, {500,500,500})
 
-    ActivePlayer = true
     ThePlayer = require("capsule_player2")(0,0,0)
 end
 
@@ -19,18 +18,15 @@ function love.mousemoved(x,y, dx,dy)
 end
 
 function love.update(dt)
-    if ActivePlayer then
-        ThePlayer:update(dt)
-    end
+    ThePlayer:update(dt)
     --g3d.camera.firstPersonMovement(dt*0.25)
 end
 
 function love.keypressed(k)
-    if k == "e" then ActivePlayer = not ActivePlayer end
     if k == "escape" then love.event.push("quit") end
 end
 
-function listPrint(x,y, ...)
+local function listPrint(x,y, ...)
     local function round(number)
         if number then
             return math.floor(number*100 + 0.5)/100
