@@ -1,14 +1,27 @@
 local Player = {}
 Player.__index = Player
 
-function Player:new(x,y,z)
+local vectors = require "g3d/vectors"
+
+-- TODO:
+-- jump not full height on slopes
+-- on-the-fly stepDownSize calculation based on normal vector of triangle
+-- mario 64 style sub-frames for more precise collision checking
+-- maximum fall speed
+-- delta-time solution
+
+local function instantiate(x,y,z)
     local self = setmetatable({}, Player)
-    self.position = {x,y,z}
-    self.wasOnGround = false
-    self.speed = {0,0,0}
-    self.floorNormal = {0,1,0}
-    self.height = 0.5
-    self.width = 0.1
+    local vectorMeta = {
+        __tostring = vectors.tostring,
+    }
+    self.position = setmetatable({x,y,z}, vectorMeta)
+    self.speed = setmetatable({0,0,0}, vectorMeta)
+    self.lastSpeed = setmetatable({0,0,0}, vectorMeta)
+    self.normal = setmetatable({0,1,0}, vectorMeta)
+    self.radius = 0.2
+    self.onGround = false
+    self.stepDownSize = 0.075
     return self
 end
 
@@ -16,135 +29,152 @@ local function getSign(number)
     return (number > 0 and 1) or (number < 0 and -1) or 0
 end
 
+local function round(number)
+    if number then
+        return math.floor(number*1000 + 0.5)/1000
+    end
+    return "nil"
+end
+
+local accumulator = 0
+local timestep = 1/60
 function Player:update(dt)
-    local acc_x, acc_y, acc_z = 0, 0, 0
-
-    -- collect inputs
-    local speed = 30
-    local move_x, move_z = 0, 0
-    if love.keyboard.isDown("w") then move_z = move_z + 1 end
-    if love.keyboard.isDown("s") then move_z = move_z - 1 end
-    if love.keyboard.isDown("a") then move_x = move_x - 1 end
-    if love.keyboard.isDown("d") then move_x = move_x + 1 end
-
-    if move_x ~= 0 or move_z ~= 0 then
-        local moveAngle = math.atan2(move_x, move_z)*-1
-        local direction = g3d.camera.getDirectionPitch()
-        acc_x = math.cos(moveAngle - direction + math.pi/2)*speed
-        acc_z = math.sin(moveAngle - direction + math.pi/2)*speed
-    end
-
-    -- apply friction and gravity
-    local friction = 10
-    acc_x = acc_x + self.speed[1]*-1*friction
-    acc_y = 5
-    acc_z = acc_z + self.speed[3]*-1*friction
-
-    -- integrate acceleration into speed
-    self.speed[1] = self.speed[1] + acc_x*dt
-    self.speed[2] = self.speed[2] + acc_y*dt
-    self.speed[3] = self.speed[3] + acc_z*dt
-
-    local onGround = false
-    local headHeight = self.height/4
-    local isSliding = false
-
-    -- vertical collisions
-    if self.speed[2] >= 0 then
-        -- floor collision
-        local coll, where_x, where_y, where_z, norm_x, norm_y, norm_z = Map:rayIntersection(
-            self.position[1],
-            self.position[2],
-            self.position[3],
-            0,
-            1,
-            0
-        )
-
-        self.floorNormal[1] = nil
-        self.floorNormal[2] = nil
-        self.floorNormal[3] = nil
-
-        local stepSize = 1
-        if coll then
-            local snapToFloor = self.position[2] + self.speed[2]*dt + self.height > where_y
-            local stepDown = self.wasOnGround and math.abs(self.position[2] - where_y) < stepSize
-            if snapToFloor or stepDown then
-                self.speed[2] = 0
-                self.position[2] = where_y - self.height
-                onGround = true
-
-                self.floorNormal[1] = norm_x
-                self.floorNormal[2] = norm_y
-                self.floorNormal[3] = norm_z
-
-                -- standing on steep slope, slide down
-                -- steep is slightly greater than sqrt(2)/2, a 45 degree incline
-                local steep = 0.71
-                if math.abs(norm_x) > steep or math.abs(norm_z) > steep then
-                    isSliding = true
-                    self.speed[1] = self.speed[1] + norm_x
-                    self.speed[3] = self.speed[3] + norm_z
-                end
-            end
-        end
-    else
-        -- ceiling collision
-        local coll, where_x, where_y, where_z = Map:rayIntersection(
-            self.position[1],
-            self.position[2],
-            self.position[3],
-            0,
-            -1,
-            0
-        )
-
-        --local snapToCeiling = self.position[2] + self.speed[2]*dt - headHeight < where_y
-        if coll and snapToCeiling then
-            self.speed[1] = 0
-            self.speed[2] = math.abs(self.speed[2])/2
-            self.speed[3] = 0
-            self.position[2] = where_y + headHeight
-        end
-    end
-
-    -- jump
-    if love.keyboard.isDown("space") and onGround and not isSliding then
-        self.speed[2] = -2
-    end
-
-    -- integrate vertical speed
-    self.position[2] = self.position[2] + self.speed[2]*dt
-
-    if self.speed[1]^2 + self.speed[3]^2 > 0 then
-        local coll, where_x, where_y, where_z, norm_x, norm_y, norm_z = Map:rayIntersection(
-            self.position[1],
-            self.position[2],
-            self.position[3],
-            self.speed[1],
-            0,
-            self.speed[3]
-        )
-
-        if not coll or coll > 0.1 then
-            -- not hitting a wall, move normally
-            self.position[1] = self.position[1] + self.speed[1]*dt
-            self.position[3] = self.position[3] + self.speed[3]*dt
-        else
-            -- hit a wall
-            self.position[1] = self.position[1] - self.speed[1]*dt
-            self.position[3] = self.position[3] - self.speed[3]*dt
-            self.speed[1] = 0
-            --self.speed[2] = math.max(0.1, self.speed[2])
-            self.speed[3] = 0
-        end
-    end
-
-    self.wasOnGround = onGround
-
-    -- attach the camera to the player
-    g3d.camera.position = self.position
+    --accumulator = accumulator + dt
+    --while accumulator > timestep do
+        --accumulator = accumulator - timestep
+        self:fixedUpdate(timestep)
+    --end
     g3d.camera.lookInDirection()
 end
 
-return setmetatable(Player, {__call = Player.new})
+function Player:collisionTest(mx,my,mz)
+    return Map:capsuleIntersection(
+        self.position[1] + mx,
+        self.position[2] + my - 0.5,
+        self.position[3] + mz,
+        self.position[1] + mx,
+        self.position[2] + my + 0.5,
+        self.position[3] + mz,
+        0.2
+    )
+end
+
+function Player:moveAndSlide(mx,my,mz)
+    local len,x,y,z,nx,ny,nz = self:collisionTest(mx,my,mz)
+
+    self.position[1] = self.position[1] + mx
+    self.position[2] = self.position[2] + my
+    self.position[3] = self.position[3] + mz
+
+    local ignoreSlopes = ny and ny < -0.7
+
+    if len then
+        local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
+
+        if speedLength > 0 then
+            local speedNormalized = {mx / speedLength, my / speedLength, mz / speedLength}
+            local dot = vectors.dotProduct(speedNormalized, {nx, ny, nz})
+            local undesiredMotion = {nx * dot, ny * dot, nz * dot}
+
+            -- modify output vector based on normal
+            my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
+
+            if not ignoreSlopes then
+                mx = (speedNormalized[1] - undesiredMotion[1]) * speedLength
+                mz = (speedNormalized[3] - undesiredMotion[3]) * speedLength
+            end
+        end
+
+        -- rejections
+        self.position[2] = self.position[2] - ny * (len - self.radius)
+
+        if not ignoreSlopes then
+            self.position[1] = self.position[1] - nx * (len - self.radius)
+            self.position[3] = self.position[3] - nz * (len - self.radius)
+        end
+    end
+
+    return mx, my, mz, nx, ny, nz
+end
+
+function Player:fixedUpdate(dt)
+    -- collect inputs
+    local moveX,moveY = 0,0
+    local speed = 0.015
+    local friction = 0.75
+    local gravity = 0.005
+    local jump = 1/12
+
+    -- friction
+    self.speed[1] = self.speed[1] * friction
+    self.speed[3] = self.speed[3] * friction
+
+    -- gravity
+    self.speed[2] = self.speed[2] + gravity
+
+    if love.keyboard.isDown("w") then moveY = moveY - 1 end
+    if love.keyboard.isDown("a") then moveX = moveX - 1 end
+    if love.keyboard.isDown("s") then moveY = moveY + 1 end
+    if love.keyboard.isDown("d") then moveX = moveX + 1 end
+    if love.keyboard.isDown("space") and self.onGround then
+        self.speed[2] = self.speed[2] - jump
+    end
+
+    -- do some trigonometry on the inputs to make movement relative to camera's direction
+    -- also to make the player not move faster in diagonal directions
+    if moveX ~= 0 or moveY ~= 0 then
+        local angle = math.atan2(moveY,moveX)
+        local direction = g3d.camera.getDirectionPitch()
+        local directionX, directionZ = math.cos(direction + angle)*speed, math.sin(direction + angle + math.pi)*speed
+
+        self.speed[1] = self.speed[1] + directionX
+        self.speed[3] = self.speed[3] + directionZ
+    end
+
+    local _, nx, ny, nz
+
+    -- vertical movement and collision check
+    _, self.speed[2], _, nx, ny, nz = self:moveAndSlide(0, self.speed[2], 0)
+
+    -- ground check
+    local wasOnGround = self.onGround
+    self.onGround = ny and ny < -0.7
+
+    -- smoothly walk down slopes
+    if not self.onGround and wasOnGround and self.speed[2] > 0 then
+        local len,x,y,z,nx,ny,nz = self:collisionTest(0,self.stepDownSize,0)
+        local mx, my, mz = 0,self.stepDownSize,0
+        if len then
+            -- do the position change only if a collision was actually detected
+            self.position[2] = self.position[2] + my
+
+            local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
+
+            if speedLength > 0 then
+                local speedNormalized = {mx / speedLength, my / speedLength, mz / speedLength}
+                local dot = vectors.dotProduct(speedNormalized, {nx, ny, nz})
+                local undesiredMotion = {nx * dot, ny * dot, nz * dot}
+
+                -- modify output vector based on normal
+                my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
+            end
+
+            -- rejections
+            self.position[2] = self.position[2] - ny * (len - self.radius)
+            self.speed[2] = 0
+            self.onGround = true
+        end
+    end
+
+    -- wall movement and collision check
+    self.speed[1], _ , self.speed[3], nx, ny, nz = self:moveAndSlide(self.speed[1], 0, self.speed[3])
+
+    -- copy speed into lastSpeed
+    for i,v in ipairs(self.speed) do
+        self.lastSpeed[i] = v
+    end
+
+    g3d.camera.position = self.position
+end
+
+return instantiate
