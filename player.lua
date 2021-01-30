@@ -4,7 +4,6 @@ Player.__index = Player
 local vectors = require "g3d/vectors"
 
 -- TODO:
--- jump not full height on slopes
 -- on-the-fly stepDownSize calculation based on normal vector of triangle
 -- mario 64 style sub-frames for more precise collision checking
 -- maximum fall speed
@@ -78,6 +77,7 @@ function Player:moveAndSlide(mx,my,mz)
 
             -- modify output vector based on normal
             my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
+            if ignoreSlopes then my = 0 end
 
             if not ignoreSlopes then
                 mx = (speedNormalized[1] - undesiredMotion[1]) * speedLength
