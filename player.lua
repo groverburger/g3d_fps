@@ -1,6 +1,4 @@
-local Player = {}
-Player.__index = Player
-
+local g3d = require "g3d"
 local vectors = require "g3d/vectors"
 
 -- TODO:
@@ -9,7 +7,21 @@ local vectors = require "g3d/vectors"
 -- maximum fall speed
 -- delta-time solution
 
-local function instantiate(x,y,z)
+local function getSign(number)
+    return (number > 0 and 1) or (number < 0 and -1) or 0
+end
+
+local function round(number)
+    if number then
+        return math.floor(number*1000 + 0.5)/1000
+    end
+    return "nil"
+end
+
+local Player = {}
+Player.__index = Player
+
+function Player:new(x,y,z)
     local self = setmetatable({}, Player)
     local vectorMeta = {
         __tostring = vectors.tostring,
@@ -24,32 +36,10 @@ local function instantiate(x,y,z)
     return self
 end
 
-local function getSign(number)
-    return (number > 0 and 1) or (number < 0 and -1) or 0
-end
-
-local function round(number)
-    if number then
-        return math.floor(number*1000 + 0.5)/1000
-    end
-    return "nil"
-end
-
-local accumulator = 0
-local timestep = 1/60
-function Player:update(dt)
-    --accumulator = accumulator + dt
-    --while accumulator > timestep do
-        --accumulator = accumulator - timestep
-        self:fixedUpdate(timestep)
-    --end
-    g3d.camera.lookInDirection()
-end
-
 function Player:collisionTest(mx,my,mz)
     return Map:capsuleIntersection(
         self.position[1] + mx,
-        self.position[2] + my - 0.5,
+        self.position[2] + my - 0.15,
         self.position[3] + mz,
         self.position[1] + mx,
         self.position[2] + my + 0.5,
@@ -97,7 +87,7 @@ function Player:moveAndSlide(mx,my,mz)
     return mx, my, mz, nx, ny, nz
 end
 
-function Player:fixedUpdate(dt)
+function Player:update()
     -- collect inputs
     local moveX,moveY = 0,0
     local speed = 0.015
@@ -169,12 +159,20 @@ function Player:fixedUpdate(dt)
     -- wall movement and collision check
     self.speed[1], _ , self.speed[3], nx, ny, nz = self:moveAndSlide(self.speed[1], 0, self.speed[3])
 
-    -- copy speed into lastSpeed
-    for i,v in ipairs(self.speed) do
-        self.lastSpeed[i] = v
+    for i=1, 3 do
+        self.lastSpeed[i] = self.speed[i]
+        g3d.camera.position[i] = self.position[i]
     end
-
-    g3d.camera.position = self.position
+    g3d.camera.lookInDirection()
 end
 
-return instantiate
+function Player:interpolate(fraction)
+    for i=1, 3 do
+        if i ~= 2 then
+            g3d.camera.position[i] = self.position[i] + self.speed[i]*fraction
+        end
+    end
+    g3d.camera.lookInDirection()
+end
+
+return Player
