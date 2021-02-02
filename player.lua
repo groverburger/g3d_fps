@@ -33,19 +33,38 @@ function Player:new(x,y,z)
     self.radius = 0.2
     self.onGround = false
     self.stepDownSize = 0.075
+    self.collisionModels = {}
+
     return self
 end
 
+function Player:addCollisionModel(model)
+    table.insert(self.collisionModels, model)
+    return model
+end
+
+-- collide against all models in my collision list
+-- and return the collision against the closest one
 function Player:collisionTest(mx,my,mz)
-    return Map:capsuleIntersection(
-        self.position[1] + mx,
-        self.position[2] + my - 0.15,
-        self.position[3] + mz,
-        self.position[1] + mx,
-        self.position[2] + my + 0.5,
-        self.position[3] + mz,
-        0.2
-    )
+    local bestLength, bx,by,bz, bnx,bny,bnz
+    
+    for _,model in ipairs(self.collisionModels) do
+        local len, x,y,z, nx,ny,nz = model:capsuleIntersection(
+            self.position[1] + mx,
+            self.position[2] + my - 0.15,
+            self.position[3] + mz,
+            self.position[1] + mx,
+            self.position[2] + my + 0.5,
+            self.position[3] + mz,
+            0.2
+        )
+
+        if len and (not bestLength or len < bestLength) then
+            bestLength, bx,by,bz, bnx,bny,bnz = len, x,y,z, nx,ny,nz
+        end
+    end
+
+    return bestLength, bx,by,bz, bnx,bny,bnz
 end
 
 function Player:moveAndSlide(mx,my,mz)
@@ -167,11 +186,16 @@ function Player:update()
 end
 
 function Player:interpolate(fraction)
+    -- interpolate in every direction except down
+    -- because gravity/floor collisions mean that there will often be a noticeable
+    -- visual difference between the interpolated position and the real position
+
     for i=1, 3 do
-        if i ~= 2 or self.speed[2] < 0 then
+        if i ~= 2 then
             g3d.camera.position[i] = self.position[i] + self.speed[i]*fraction
         end
     end
+
     g3d.camera.lookInDirection()
 end
 

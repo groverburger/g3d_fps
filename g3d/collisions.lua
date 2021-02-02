@@ -136,9 +136,13 @@ local function triangleSphere(
     and fastDotProduct(c1_x, c1_y, c1_z, n_x, n_y, n_z) <= 0
     and fastDotProduct(c2_x, c2_y, c2_z, n_x, n_y, n_z) <= 0 then
         n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+        
+        -- the sphere is inside the triangle, so the normal is zero
+        -- instead, just return the triangle's normal
         if n_x == 0 and n_y == 0 and n_z == 0 then
             return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, tri_n_x, tri_n_y, tri_n_z
         end
+
         return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
     end
 
@@ -171,9 +175,13 @@ local function triangleSphere(
 
     if smallestDist then
         n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+
+        -- the sphere is inside the triangle, so the normal is zero
+        -- instead, just return the triangle's normal
         if n_x == 0 and n_y == 0 and n_z == 0 then
             return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, tri_n_x, tri_n_y, tri_n_z
         end
+
         return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
     end
 end
