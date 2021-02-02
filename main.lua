@@ -20,48 +20,21 @@ end
 
 function love.update(dt)
     ThePlayer:update(dt)
-    --g3d.camera.firstPersonMovement(dt*0.25)
 end
 
 function love.keypressed(k)
     if k == "escape" then love.event.push("quit") end
 end
 
-local function listPrint(x,y, ...)
-    local function round(number)
-        if number then
-            return math.floor(number*100 + 0.5)/100
-        end
-        return "nil"
-    end
-
-    local str = ""
-    local t = {...}
-    for i,value in ipairs(t) do
-        --assert(value == value, "value " .. i .. " is nan!")
-        str = str .. tostring(round(value))
-        if i < #t then
-            str = str .. ", "
-        end
-    end
-
-    love.graphics.print(str, x,y)
-end
-
---local frameCount = 0
---local totalGameTime = 0
---local framesSinceLastUpdate = 0
 function love.draw()
     Map:draw()
     Background:draw()
-    --love.graphics.print(frameCount / totalGameTime)
 end
 
 function love.interpolate(fraction)
     ThePlayer:interpolate(fraction)
 end
 
-local usedDeltas = {}
 function love.run()
     if love.load then love.load(love.arg.parseGameArguments(arg), arg) end
 
@@ -99,28 +72,12 @@ function love.run()
         for i,v in ipairs(rollingAverage) do
             avg = avg + v
         end
-        local delta = avg/#rollingAverage
 
-        accumulator = accumulator + delta
+        accumulator = accumulator + avg/#rollingAverage
 
-        --[[
-        table.insert(usedDeltas, (accumulator/frametime)%1)
-        if #usedDeltas > 120 then
-            table.remove(usedDeltas, 1)
-        end
-        ]]
-
-        --totalGameTime = totalGameTime + dt
-
-        -- Call update and draw
-        --print(accumulator/frametime)
         while accumulator > frametime do
             accumulator = accumulator - frametime
             if love.update then love.update(frametime) end
-            --if framesSinceLastUpdate < 7 then
-                --print(framesSinceLastUpdate)
-            --end
-            framesSinceLastUpdate = 0
         end
 
         if love.interpolate then love.interpolate(accumulator/frametime) end
@@ -130,8 +87,6 @@ function love.run()
             love.graphics.clear(love.graphics.getBackgroundColor())
 
             if love.draw then love.draw() end
-            --frameCount = frameCount + 1
-            --framesSinceLastUpdate = framesSinceLastUpdate + 1
 
             love.graphics.present()
         end
@@ -139,11 +94,3 @@ function love.run()
         if love.timer then love.timer.sleep(0.001) end
     end
 end
-
---[[
-function love.quit()
-    for i,v in ipairs(usedDeltas) do
-        print(i,v)
-    end
-end
-]]

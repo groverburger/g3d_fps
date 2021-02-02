@@ -168,7 +168,7 @@ end
 
 function Player:interpolate(fraction)
     for i=1, 3 do
-        if i ~= 2 then
+        if i ~= 2 or self.speed[2] < 0 then
             g3d.camera.position[i] = self.position[i] + self.speed[i]*fraction
         end
     end
