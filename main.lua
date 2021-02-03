@@ -39,6 +39,7 @@ function love.load()
         -- interpolate player between frames
         -- to stop camera jitter when fps and timestep do not match
         player:interpolate(accumulator/frametime)
+        background:setTranslation(g3d.camera.position[1], g3d.camera.position[2],g3d.camera.position[3])
     end
 
     function love.keypressed(k)
