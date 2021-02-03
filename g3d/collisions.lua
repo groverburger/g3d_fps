@@ -17,6 +17,14 @@ local function fastSubtract(v1,v2,v3, v4,v5,v6)
     return v1-v4, v2-v5, v3-v6
 end
 
+local function fastAdd(v1,v2,v3, v4,v5,v6)
+    return v1+v4, v2+v5, v3+v6
+end
+
+local function fastScalar(scalar, v1,v2,v3)
+    return v1*scalar, v2*scalar, v3*scalar
+end
+
 local function fastCrossProduct(a1,a2,a3, b1,b2,b3)
     return a2*b3 - a3*b2, a3*b1 - a1*b3, a1*b2 - a2*b1
 end
@@ -186,9 +194,7 @@ local function triangleSphere(
     end
 end
 
--- detects a collision between a triangle and a point
--- because this function may be called on thousands of triangles, all tables have been removed for efficiency
--- this ends up making the code look really ugly, but it's worth it
+-- finds the closest point on the triangle from the source point given
 --
 -- sources:
 --     https://wickedengine.net/2020/04/26/capsule-collision-detection/
@@ -196,7 +202,7 @@ local function trianglePoint(
         tri_0_x, tri_0_y, tri_0_z,
         tri_1_x, tri_1_y, tri_1_z,
         tri_2_x, tri_2_y, tri_2_z,
-        n_x, n_y, n_z,
+        tri_n_x, tri_n_y, tri_n_z,
         src_x, src_y, src_z
     )
 
@@ -220,6 +226,13 @@ local function trianglePoint(
     and fastDotProduct(c1_x, c1_y, c1_z, n_x, n_y, n_z) <= 0
     and fastDotProduct(c2_x, c2_y, c2_z, n_x, n_y, n_z) <= 0 then
         n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+
+        -- the sphere is inside the triangle, so the normal is zero
+        -- instead, just return the triangle's normal
+        if n_x == 0 and n_y == 0 and n_z == 0 then
+            return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, tri_n_x, tri_n_y, tri_n_z
+        end
+
         return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
     end
 
@@ -247,6 +260,13 @@ local function trianglePoint(
 
     if smallestDist then
         n_x, n_y, n_z = src_x - itx_x, src_y - itx_y, src_z - itx_z
+
+        -- the sphere is inside the triangle, so the normal is zero
+        -- instead, just return the triangle's normal
+        if n_x == 0 and n_y == 0 and n_z == 0 then
+            return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, tri_n_x, tri_n_y, tri_n_z
+        end
+
         return fastMagnitude(n_x, n_y, n_z), itx_x, itx_y, itx_z, n_x, n_y, n_z
     end
 end
@@ -307,7 +327,34 @@ local function triangleCapsule(
     )
 end
 
-local function findClosest(self, func, ...)
+local function triangleAABB(
+        tri_0_x, tri_0_y, tri_0_z,
+        tri_1_x, tri_1_y, tri_1_z,
+        tri_2_x, tri_2_y, tri_2_z,
+        n_x, n_y, n_z,
+        min_x, min_y, min_z,
+        max_x, max_y, max_z
+    )
+
+    -- get the closest point from the centerpoint on the triangle
+    local len,x,y,z,nx,ny,nz = trianglePoint(
+        tri_0_x, tri_0_y, tri_0_z,
+        tri_1_x, tri_1_y, tri_1_z,
+        tri_2_x, tri_2_y, tri_2_z,
+        n_x, n_y, n_z,
+        (min_x+max_x)*0.5, (min_y+max_y)*0.5, (min_z+max_z)*0.5
+    )
+
+    -- if the point is not inside the AABB, return nothing
+    if not (x >= min_x and x <= max_x) then return end
+    if not (y >= min_y and y <= max_y) then return end
+    if not (z >= min_z and z <= max_z) then return end
+
+    -- the point is inside the AABB, return the collision data
+    return len, x,y,z, nx,ny,nz
+end
+
+local function findClosest(self, verts, func, ...)
     -- declare the variables that will be returned by the function
     local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
 
@@ -318,7 +365,6 @@ local function findClosest(self, func, ...)
     local scale_x = self.scale[1]
     local scale_y = self.scale[2]
     local scale_z = self.scale[3]
-    local verts = self.verts
 
     for v=1, #verts, 3 do
         -- apply the function given with the arguments given
@@ -369,15 +415,15 @@ local function findClosest(self, func, ...)
 end
 
 function collisions:rayIntersection(src_x, src_y, src_z, dir_x, dir_y, dir_z)
-    return findClosest(self, triangleRay, src_x, src_y, src_z, dir_x, dir_y, dir_z)
+    return findClosest(self, self.verts, triangleRay, src_x, src_y, src_z, dir_x, dir_y, dir_z)
 end
 
 function collisions:sphereIntersection(src_x, src_y, src_z, radius)
-    return findClosest(self, triangleSphere, src_x, src_y, src_z, radius)
+    return findClosest(self, self.verts, triangleSphere, src_x, src_y, src_z, radius)
 end
 
 function collisions:closestPoint(src_x, src_y, src_z)
-    return findClosest(self, trianglePoint, src_x, src_y, src_z)
+    return findClosest(self, self.verts, trianglePoint, src_x, src_y, src_z)
 end
 
 function collisions:capsuleIntersection(tip_x, tip_y, tip_z, base_x, base_y, base_z, radius)
@@ -391,6 +437,7 @@ function collisions:capsuleIntersection(tip_x, tip_y, tip_z, base_x, base_y, bas
 
     return findClosest(
         self,
+        self.verts,
         triangleCapsule,
         tip_x, tip_y, tip_z,
         base_x, base_y, base_z,
@@ -399,6 +446,75 @@ function collisions:capsuleIntersection(tip_x, tip_y, tip_z, base_x, base_y, bas
         norm_x, norm_y, norm_z,
         radius
     )
+end
+
+function collisions:createCollisionZones(zoneSize)
+    local aabb = self:generateAABB()
+
+    local min_1 = math.floor(aabb.min[1]/zoneSize)*zoneSize
+    local min_2 = math.floor(aabb.min[2]/zoneSize)*zoneSize
+    local min_3 = math.floor(aabb.min[3]/zoneSize)*zoneSize
+
+    local max_1 = math.floor(aabb.max[1]/zoneSize)*zoneSize
+    local max_2 = math.floor(aabb.max[2]/zoneSize)*zoneSize
+    local max_3 = math.floor(aabb.max[3]/zoneSize)*zoneSize
+
+    local translation_x = self.translation[1]
+    local translation_y = self.translation[2]
+    local translation_z = self.translation[3]
+    local scale_x = self.scale[1]
+    local scale_y = self.scale[2]
+    local scale_z = self.scale[3]
+    local verts = self.verts
+
+    local zones = {}
+    for x=min_1, max_1, zoneSize do
+        for y=min_2, max_2, zoneSize do
+            for z=min_3, max_3, zoneSize do
+                local hash = x .. ", " .. y .. ", " .. z
+
+                for v=1, #verts, 3 do
+                    local n_x, n_y, n_z = fastNormalize(
+                        verts[v][6]*scale_x,
+                        verts[v][7]*scale_x,
+                        verts[v][8]*scale_x
+                    )
+
+                    local inside = triangleAABB(
+                        verts[v][1]*scale_x + translation_x,
+                        verts[v][2]*scale_y + translation_y,
+                        verts[v][3]*scale_z + translation_z,
+                        verts[v+1][1]*scale_x + translation_x,
+                        verts[v+1][2]*scale_y + translation_y,
+                        verts[v+1][3]*scale_z + translation_z,
+                        verts[v+2][1]*scale_x + translation_x,
+                        verts[v+2][2]*scale_y + translation_y,
+                        verts[v+2][3]*scale_z + translation_z,
+                        n_x, n_y, n_z,
+                        x,y,z,
+                        x+zoneSize,y+zoneSize,z+zoneSize
+                    )
+
+                    if inside then
+                        if not zones[hash] then
+                            zones[hash] = {}
+                        end
+
+                        table.insert(zones[hash], verts[v])
+                        table.insert(zones[hash], verts[v+1])
+                        table.insert(zones[hash], verts[v+2])
+                    end
+                end
+                
+                if zones[hash] then
+                    print(hash, #zones[hash])
+                end
+            end
+        end
+    end
+
+    self.zones = zones
+    return zones
 end
 
 ----------------------------------------------------------------------------------------------------

@@ -4,8 +4,6 @@ local vectors = require "g3d/vectors"
 -- TODO:
 -- on-the-fly stepDownSize calculation based on normal vector of triangle
 -- mario 64 style sub-frames for more precise collision checking
--- maximum fall speed
--- delta-time solution
 
 local function getSign(number)
     return (number > 0 and 1) or (number < 0 and -1) or 0
@@ -47,7 +45,7 @@ end
 -- and return the collision against the closest one
 function Player:collisionTest(mx,my,mz)
     local bestLength, bx,by,bz, bnx,bny,bnz
-    
+
     for _,model in ipairs(self.collisionModels) do
         local len, x,y,z, nx,ny,nz = model:capsuleIntersection(
             self.position[1] + mx,
@@ -113,13 +111,14 @@ function Player:update()
     local friction = 0.75
     local gravity = 0.005
     local jump = 1/12
+    local maxFallSpeed = 0.25
 
     -- friction
     self.speed[1] = self.speed[1] * friction
     self.speed[3] = self.speed[3] * friction
 
     -- gravity
-    self.speed[2] = self.speed[2] + gravity
+    self.speed[2] = math.min(self.speed[2] + gravity, maxFallSpeed)
 
     if love.keyboard.isDown("w") then moveY = moveY - 1 end
     if love.keyboard.isDown("a") then moveX = moveX - 1 end
@@ -176,7 +175,7 @@ function Player:update()
     end
 
     -- wall movement and collision check
-    self.speed[1], _ , self.speed[3], nx, ny, nz = self:moveAndSlide(self.speed[1], 0, self.speed[3])
+    self.speed[1], _, self.speed[3], nx, ny, nz = self:moveAndSlide(self.speed[1], 0, self.speed[3])
 
     for i=1, 3 do
         self.lastSpeed[i] = self.speed[i]
