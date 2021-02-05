@@ -3,7 +3,7 @@
 -- MIT license
 
 local shader = require(G3D_PATH .. "/shader")
-local matrices = require(G3D_PATH .. "/matrices")
+local newMatrix = require(G3D_PATH .. "/matrixClass")
 
 ----------------------------------------------------------------------------------------------------
 -- define the camera singleton
@@ -17,6 +17,9 @@ local camera = {
     position = {0,0,0},
     target = {0,0,1},
     down = {0,-1,0},
+
+    viewMatrix = newMatrix(),
+    projectionMatrix = newMatrix(),
 }
 
 -- private variables used only for the first person camera functions
@@ -91,19 +94,22 @@ end
 -- recreate the camera's view matrix from its current values
 -- and send the matrix to the shader specified, or the default shader
 function camera.updateViewMatrix(shaderGiven)
-    (shaderGiven or shader):send("viewMatrix", matrices.getViewMatrix(camera.position, camera.target, camera.down))
+    camera.viewMatrix:setViewMatrix(camera.position, camera.target, camera.down);
+    (shaderGiven or shader):send("viewMatrix", camera.viewMatrix)
 end
 
 -- recreate the camera's projection matrix from its current values
 -- and send the matrix to the shader specified, or the default shader
 function camera.updateProjectionMatrix(shaderGiven)
-    (shaderGiven or shader):send("projectionMatrix", matrices.getProjectionMatrix(camera.fov, camera.nearClip, camera.farClip, camera.aspectRatio))
+    camera.projectionMatrix:setProjectionMatrix(camera.fov, camera.nearClip, camera.farClip, camera.aspectRatio);
+    (shaderGiven or shader):send("projectionMatrix", camera.projectionMatrix)
 end
 
 -- recreate the camera's orthographic projection matrix from its current values
 -- and send the matrix to the shader specified, or the default shader
 function camera.updateOrthographicMatrix(size, shaderGiven)
-    (shaderGiven or shader):send("projectionMatrix", matrices.getOrthographicMatrix(camera.fov, size or 5, camera.nearClip, camera.farClip, camera.aspectRatio))
+    camera.projectionMatrix:setOrthographicMatrix(camera.fov, size or 5, camera.nearClip, camera.farClip, camera.aspectRatio);
+    (shaderGiven or shader):send("projectionMatrix", camera.projectionMatrix)
 end
 
 -- simple first person camera movement with WASD

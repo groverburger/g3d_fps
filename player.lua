@@ -78,17 +78,17 @@ function Player:moveAndSlide(mx,my,mz)
         local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
 
         if speedLength > 0 then
-            local speedNormalized = {mx / speedLength, my / speedLength, mz / speedLength}
-            local dot = vectors.dotProduct(speedNormalized, {nx, ny, nz})
-            local undesiredMotion = {nx * dot, ny * dot, nz * dot}
+            local xNorm, yNorm, zNorm = mx / speedLength, my / speedLength, mz / speedLength
+            local dot = xNorm*nx + yNorm*ny + zNorm*nz
+            local xPush, yPush, zPush = nx * dot, ny * dot, nz * dot
 
             -- modify output vector based on normal
-            my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
+            my = (yNorm - yPush) * speedLength
             if ignoreSlopes then my = 0 end
 
             if not ignoreSlopes then
-                mx = (speedNormalized[1] - undesiredMotion[1]) * speedLength
-                mz = (speedNormalized[3] - undesiredMotion[3]) * speedLength
+                mx = (xNorm - xPush) * speedLength
+                mz = (zNorm - zPush) * speedLength
             end
         end
 
@@ -159,12 +159,12 @@ function Player:update()
             local speedLength = math.sqrt(mx^2 + my^2 + mz^2)
 
             if speedLength > 0 then
-                local speedNormalized = {mx / speedLength, my / speedLength, mz / speedLength}
-                local dot = vectors.dotProduct(speedNormalized, {nx, ny, nz})
-                local undesiredMotion = {nx * dot, ny * dot, nz * dot}
+                local xNorm, yNorm, zNorm = mx / speedLength, my / speedLength, mz / speedLength
+                local dot = xNorm*nx + yNorm*ny + zNorm*nz
+                local xPush, yPush, zPush = nx * dot, ny * dot, nz * dot
 
                 -- modify output vector based on normal
-                my = (speedNormalized[2] - undesiredMotion[2]) * speedLength
+                my = (yNorm - yPush) * speedLength
             end
 
             -- rejections

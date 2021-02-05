@@ -3,7 +3,7 @@
 -- MIT license
 
 local vectors = require(G3D_PATH .. "/vectors")
-local matrices = require(G3D_PATH .. "/matrices")
+local newMatrix = require(G3D_PATH .. "/matrixClass")
 local loadObjFile = require(G3D_PATH .. "/objloader")
 local collisions = require(G3D_PATH .. "/collisions")
 
@@ -53,6 +53,7 @@ local function newModel(given, texture, translation, rotation, scale)
     self.texture = texture
     self.mesh = love.graphics.newMesh(self.vertexFormat, self.verts, "triangles")
     self.mesh:setTexture(self.texture)
+    self.matrix = newMatrix()
     self:setTransform(translation or {0,0,0}, rotation or {0,0,0}, scale or {1,1,1})
     self:generateAABB()
 
@@ -120,7 +121,8 @@ end
 
 -- update the model's transformation matrix
 function model:updateMatrix()
-    self.matrix = matrices.getTransformationMatrix(self.translation, self.rotation, self.scale)
+    self.matrix:setTransformationMatrix(self.translation, self.rotation, self.scale)
+    print(self.matrix)
 end
 
 -- draw the model
