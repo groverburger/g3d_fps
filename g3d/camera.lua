@@ -3,7 +3,7 @@
 -- MIT license
 
 local shader = require(G3D_PATH .. "/shader")
-local newMatrix = require(G3D_PATH .. "/matrixClass")
+local newMatrix = require(G3D_PATH .. "/matrices")
 
 ----------------------------------------------------------------------------------------------------
 -- define the camera singleton

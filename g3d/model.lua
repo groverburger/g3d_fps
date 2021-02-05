@@ -2,8 +2,7 @@
 -- january 2021
 -- MIT license
 
-local vectors = require(G3D_PATH .. "/vectors")
-local newMatrix = require(G3D_PATH .. "/matrixClass")
+local newMatrix = require(G3D_PATH .. "/matrices")
 local loadObjFile = require(G3D_PATH .. "/objloader")
 local collisions = require(G3D_PATH .. "/collisions")
 
@@ -60,6 +59,15 @@ local function newModel(given, texture, translation, rotation, scale)
     return self
 end
 
+local function fastCrossProduct(a1,a2,a3, b1,b2,b3)
+    return a2*b3 - a3*b2, a3*b1 - a1*b3, a1*b2 - a2*b1
+end
+
+local function fastNormalize(x,y,z)
+    local mag = math.sqrt(x^2 + y^2 + z^2)
+    return x/mag, y/mag, z/mag
+end
+
 -- populate model's normals in model's mesh automatically
 -- if true is passed in, then the normals are all flipped
 function model:makeNormals(isFlipped)
@@ -68,22 +76,15 @@ function model:makeNormals(isFlipped)
         local v = self.verts[i+1]
         local vn = self.verts[i+2]
 
-        local vec1 = {v[1]-vp[1], v[2]-vp[2], v[3]-vp[3]}
-        local vec2 = {vn[1]-v[1], vn[2]-v[2], vn[3]-v[3]}
-        local normal = vectors.normalizeVector(vectors.crossProduct(vec1,vec2))
+        local n_1, n_2, n_3 = fastNormalize(fastCrossProduct(v[1]-vp[1], v[2]-vp[2], v[3]-vp[3], vn[1]-v[1], vn[2]-v[2], vn[3]-v[3]))
         local flippage = isFlipped and -1 or 1
+        n_1 = n_1 * flippage
+        n_2 = n_2 * flippage
+        n_3 = n_3 * flippage
 
-        vp[6] = normal[1] * flippage
-        vp[7] = normal[2] * flippage
-        vp[8] = normal[3] * flippage
-
-        v[6] = normal[1] * flippage
-        v[7] = normal[2] * flippage
-        v[8] = normal[3] * flippage
-
-        vn[6] = normal[1] * flippage
-        vn[7] = normal[2] * flippage
-        vn[8] = normal[3] * flippage
+        vp[6], v[6], vn[6] = n_1, n_1, n_1
+        vp[7], v[7], vn[7] = n_2, n_2, n_2
+        vp[8], v[8], vn[8] = n_3, n_3, n_3
     end
 end
 
@@ -122,7 +123,6 @@ end
 -- update the model's transformation matrix
 function model:updateMatrix()
     self.matrix:setTransformationMatrix(self.translation, self.rotation, self.scale)
-    print(self.matrix)
 end
 
 -- draw the model

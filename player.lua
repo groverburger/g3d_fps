@@ -1,5 +1,4 @@
 local g3d = require "g3d"
-local vectors = require "g3d/vectors"
 
 -- TODO:
 -- on-the-fly stepDownSize calculation based on normal vector of triangle
@@ -22,7 +21,6 @@ Player.__index = Player
 function Player:new(x,y,z)
     local self = setmetatable({}, Player)
     local vectorMeta = {
-        __tostring = vectors.tostring,
     }
     self.position = setmetatable({x,y,z}, vectorMeta)
     self.speed = setmetatable({0,0,0}, vectorMeta)
