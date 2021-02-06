@@ -5,6 +5,10 @@
 local newMatrix = require(G3D_PATH .. "/matrices")
 local loadObjFile = require(G3D_PATH .. "/objloader")
 local collisions = require(G3D_PATH .. "/collisions")
+local vectors = require(G3D_PATH .. "/vectors")
+local fastCrossProduct = vectors.crossProduct
+local fastDotProduct = vectors.dotProduct
+local fastNormalize = vectors.normalize
 
 ----------------------------------------------------------------------------------------------------
 -- define a model class
@@ -59,15 +63,6 @@ local function newModel(given, texture, translation, rotation, scale)
     return self
 end
 
-local function fastCrossProduct(a1,a2,a3, b1,b2,b3)
-    return a2*b3 - a3*b2, a3*b1 - a1*b3, a1*b2 - a2*b1
-end
-
-local function fastNormalize(x,y,z)
-    local mag = math.sqrt(x^2 + y^2 + z^2)
-    return x/mag, y/mag, z/mag
-end
-
 -- populate model's normals in model's mesh automatically
 -- if true is passed in, then the normals are all flipped
 function model:makeNormals(isFlipped)
@@ -105,10 +100,24 @@ function model:setTranslation(tx,ty,tz)
 end
 
 -- rotate given one 3d vector
+-- using euler angles
 function model:setRotation(rx,ry,rz)
     self.rotation[1] = rx
     self.rotation[2] = ry
     self.rotation[3] = rz
+    self.rotation[4] = nil
+    self:updateMatrix()
+end
+
+-- rotate given one quaternion
+function model:setQuaternionRotation(x,y,z,angle)
+    x,y,z = fastNormalize(x,y,z)
+
+    self.rotation[1] = x * math.sin(angle/2)
+    self.rotation[2] = y * math.sin(angle/2)
+    self.rotation[3] = z * math.sin(angle/2)
+    self.rotation[4] = math.cos(angle/2)
+
     self:updateMatrix()
 end
 

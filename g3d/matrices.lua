@@ -1,3 +1,12 @@
+-- written by groverbuger for g3d
+-- february 2021
+-- MIT license
+
+local vectors = require(G3D_PATH .. "/vectors")
+local fastCrossProduct = vectors.crossProduct
+local fastDotProduct = vectors.dotProduct
+local fastNormalize = vectors.normalize
+
 ----------------------------------------------------------------------------------------------------
 -- matrix class
 ----------------------------------------------------------------------------------------------------
@@ -82,29 +91,42 @@ function matrix:setTransformationMatrix(translation, rotation, scale)
     self[12] = translation[3]
 
     -- rotations
-    -- x
-    rx:identity()
-    rx[6] = math.cos(rotation[1])
-    rx[7] = -1*math.sin(rotation[1])
-    rx[10] = math.sin(rotation[1])
-    rx[11] = math.cos(rotation[1])
-    self:multiply(rx)
+    if #rotation == 3 then
+        -- use 3D rotation vector as euler angles
+        -- x
+        rx:identity()
+        rx[6] = math.cos(rotation[1])
+        rx[7] = -1*math.sin(rotation[1])
+        rx[10] = math.sin(rotation[1])
+        rx[11] = math.cos(rotation[1])
+        self:multiply(rx)
 
-    -- y
-    ry:identity()
-    ry[1] = math.cos(rotation[2])
-    ry[3] = math.sin(rotation[2])
-    ry[9] = -1*math.sin(rotation[2])
-    ry[11] = math.cos(rotation[2])
-    self:multiply(ry)
+        -- y
+        ry:identity()
+        ry[1] = math.cos(rotation[2])
+        ry[3] = math.sin(rotation[2])
+        ry[9] = -1*math.sin(rotation[2])
+        ry[11] = math.cos(rotation[2])
+        self:multiply(ry)
 
-    -- z
-    rz:identity()
-    rz[1] = math.cos(rotation[3])
-    rz[2] = -1*math.sin(rotation[3])
-    rz[5] = math.sin(rotation[3])
-    rz[6] = math.cos(rotation[3])
-    self:multiply(rz)
+        -- z
+        rz:identity()
+        rz[1] = math.cos(rotation[3])
+        rz[2] = -1*math.sin(rotation[3])
+        rz[5] = math.sin(rotation[3])
+        rz[6] = math.cos(rotation[3])
+        self:multiply(rz)
+    else
+        -- use 4D rotation vector as quaternion
+        rx:identity()
+
+        local qx,qy,qz,qw = rotation[1], rotation[2], rotation[3], rotation[4]
+        rx[1], rx[2],  rx[3]  = 1 - 2*qy^2 - 2*qz^2, 2*qx*qy - 2*qz*qw,   2*qx*qz + 2*qy*qw
+        rx[5], rx[6],  rx[7]  = 2*qx*qy + 2*qz*qw,   1 - 2*qx^2 - 2*qz^2, 2*qy*qz - 2*qx*qw
+        rx[9], rx[10], rx[11] = 2*qx*qz - 2*qy*qw,   2*qy*qz + 2*qx*qw,   1 - 2*qx^2 - 2*qy^2
+
+        self:multiply(rx)
+    end
 
     -- scale
     sm:identity()
@@ -146,19 +168,6 @@ function matrix:setOrthographicMatrix(fov, size, near, far, aspectRatio)
     self[5],  self[6],  self[7],  self[8]  = 0, 2/(top-bottom), 0, -1*(top+bottom)/(top-bottom)
     self[9],  self[10], self[11], self[12] = 0, 0, -2/(far-near), -(far+near)/(far-near)
     self[13], self[14], self[15], self[16] = 0, 0, 0, 1
-end
-
-local function fastCrossProduct(a1,a2,a3, b1,b2,b3)
-    return a2*b3 - a3*b2, a3*b1 - a1*b3, a1*b2 - a2*b1
-end
-
-local function fastDotProduct(a1,a2,a3, b1,b2,b3)
-    return a1*b1 + a2*b2 + a3*b3
-end
-
-local function fastNormalize(x,y,z)
-    local mag = math.sqrt(x^2 + y^2 + z^2)
-    return x/mag, y/mag, z/mag
 end
 
 -- returns a view matrix

@@ -13,15 +13,23 @@ function love.load()
     local player = Player:new(0,0,0)
     player:addCollisionModel(map)
 
+    local timer = 0
     local lineVerts = {
-        {0,0,0},
-        {1,0,0},
-        {0,0,1},
-        {1,0,1},
-        {1,0,0},
-        {0,0,1},
+        {-1,0,-1},
+        {1, 0,-1},
+        {-1,0, 1},
+        {1, 0, 1},
+        {1, 0,-1},
+        {-1,0, 1},
     }
     local linetest = g3d.newModel(lineVerts)
+    local function lineDraw(x1,y1,z1, x2,y2,z2)
+        linetest:setTranslation((x1+x2)/2, (y1+y2)/2, (z1+z2)/2)
+        local mag = math.sqrt((x1-x2)^2 + (y1-y2)^2 + (z1-z2)^2)
+        linetest:setScale(1,mag/2,1)
+        linetest:setQuaternionRotation(x1-x2, y1-y2, z1-z2, math.pi)
+        linetest:draw()
+    end
 
     local accumulator = 0
     local frametime = 1/60
@@ -45,12 +53,13 @@ function love.load()
         while accumulator > frametime do
             accumulator = accumulator - frametime
             player:update(dt)
+            timer = timer + 1/60
         end
 
         -- interpolate player between frames
         -- to stop camera jitter when fps and timestep do not match
-        --player:interpolate(accumulator/frametime)
-        --background:setTranslation(g3d.camera.position[1], g3d.camera.position[2],g3d.camera.position[3])
+        player:interpolate(accumulator/frametime)
+        background:setTranslation(g3d.camera.position[1], g3d.camera.position[2],g3d.camera.position[3])
     end
 
     function love.keypressed(k)
@@ -66,9 +75,9 @@ function love.load()
         background:draw()
 
         --linetest:setTranslation(2,0,0)
+        --linetest:setQuaternionRotation(1,0,0, timer)
         --linetest:draw()
-        --linetest:setTranslation(0,0,0)
-        --linetest:draw()
+        lineDraw(0,0,0, 1,-1,1)
 
         lg.print(collectgarbage("count"))
     end
