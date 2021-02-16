@@ -3,15 +3,14 @@
 -- MIT license
 
 local vectors = require(G3D_PATH .. "/vectors")
-local fastCrossProduct = vectors.crossProduct
-local fastDotProduct = vectors.dotProduct
-local fastNormalize = vectors.normalize
+local vectorCrossProduct = vectors.crossProduct
+local vectorDotProduct = vectors.dotProduct
+local vectorNormalize = vectors.normalize
 
 ----------------------------------------------------------------------------------------------------
 -- matrix class
 ----------------------------------------------------------------------------------------------------
--- matrices are just 16 numbers in table, representing a 4x4 matrix
--- an identity matrix is defined as {1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1}
+-- matrices are 16 numbers in table, representing a 4x4 matrix
 
 local matrix = {}
 matrix.__index = matrix
@@ -37,6 +36,8 @@ end
 -- this matrix becomes the result of the multiplication operation
 local orig = newMatrix()
 function matrix:multiply(other)
+    -- hold the values of the original matrix
+    -- because the matrix is changing while it is used
     for i=1, 16 do
         orig[i] = self[i]
     end
@@ -75,13 +76,9 @@ end
 -- the three most important matrices for 3d graphics
 -- these three matrices are all you need to write a simple 3d shader
 
-
 -- returns a transformation matrix
 -- translation and rotation are 3d vectors
-local rx = newMatrix()
-local ry = newMatrix()
-local rz = newMatrix()
-local sm = newMatrix()
+local temp = newMatrix()
 function matrix:setTransformationMatrix(translation, rotation, scale)
     self:identity()
 
@@ -94,51 +91,51 @@ function matrix:setTransformationMatrix(translation, rotation, scale)
     if #rotation == 3 then
         -- use 3D rotation vector as euler angles
         -- x
-        rx:identity()
-        rx[6] = math.cos(rotation[1])
-        rx[7] = -1*math.sin(rotation[1])
-        rx[10] = math.sin(rotation[1])
-        rx[11] = math.cos(rotation[1])
-        self:multiply(rx)
+        temp:identity()
+        temp[6] = math.cos(rotation[1])
+        temp[7] = -1*math.sin(rotation[1])
+        temp[10] = math.sin(rotation[1])
+        temp[11] = math.cos(rotation[1])
+        self:multiply(temp)
 
         -- y
-        ry:identity()
-        ry[1] = math.cos(rotation[2])
-        ry[3] = math.sin(rotation[2])
-        ry[9] = -1*math.sin(rotation[2])
-        ry[11] = math.cos(rotation[2])
-        self:multiply(ry)
+        temp:identity()
+        temp[1] = math.cos(rotation[2])
+        temp[3] = math.sin(rotation[2])
+        temp[9] = -1*math.sin(rotation[2])
+        temp[11] = math.cos(rotation[2])
+        self:multiply(temp)
 
         -- z
-        rz:identity()
-        rz[1] = math.cos(rotation[3])
-        rz[2] = -1*math.sin(rotation[3])
-        rz[5] = math.sin(rotation[3])
-        rz[6] = math.cos(rotation[3])
-        self:multiply(rz)
+        temp:identity()
+        temp[1] = math.cos(rotation[3])
+        temp[2] = -1*math.sin(rotation[3])
+        temp[5] = math.sin(rotation[3])
+        temp[6] = math.cos(rotation[3])
+        self:multiply(temp)
     else
         -- use 4D rotation vector as quaternion
-        rx:identity()
+        temp:identity()
 
         local qx,qy,qz,qw = rotation[1], rotation[2], rotation[3], rotation[4]
-        rx[1], rx[2],  rx[3]  = 1 - 2*qy^2 - 2*qz^2, 2*qx*qy - 2*qz*qw,   2*qx*qz + 2*qy*qw
-        rx[5], rx[6],  rx[7]  = 2*qx*qy + 2*qz*qw,   1 - 2*qx^2 - 2*qz^2, 2*qy*qz - 2*qx*qw
-        rx[9], rx[10], rx[11] = 2*qx*qz - 2*qy*qw,   2*qy*qz + 2*qx*qw,   1 - 2*qx^2 - 2*qy^2
+        temp[1], temp[2],  temp[3]  = 1 - 2*qy^2 - 2*qz^2, 2*qx*qy - 2*qz*qw,   2*qx*qz + 2*qy*qw
+        temp[5], temp[6],  temp[7]  = 2*qx*qy + 2*qz*qw,   1 - 2*qx^2 - 2*qz^2, 2*qy*qz - 2*qx*qw
+        temp[9], temp[10], temp[11] = 2*qx*qz - 2*qy*qw,   2*qy*qz + 2*qx*qw,   1 - 2*qx^2 - 2*qy^2
 
-        self:multiply(rx)
+        self:multiply(temp)
     end
 
     -- scale
-    sm:identity()
-    sm[1] = scale[1]
-    sm[6] = scale[2]
-    sm[11] = scale[3]
-    self:multiply(sm)
+    temp:identity()
+    temp[1] = scale[1]
+    temp[6] = scale[2]
+    temp[11] = scale[3]
+    self:multiply(temp)
 
     return self
 end
 
--- returns a standard projection matrix
+-- returns a perspective projection matrix
 -- (things farther away appear smaller)
 -- all arguments are scalars aka normal numbers
 -- aspectRatio is defined as window width divided by window height
@@ -173,13 +170,13 @@ end
 -- returns a view matrix
 -- eye, target, and down are all 3d vectors
 function matrix:setViewMatrix(eye, target, down)
-    local z_1, z_2, z_3 = fastNormalize(eye[1] - target[1], eye[2] - target[2], eye[3] - target[3])
-    local x_1, x_2, x_3 = fastNormalize(fastCrossProduct(down[1], down[2], down[3], z_1, z_2, z_3))
-    local y_1, y_2, y_3 = fastCrossProduct(z_1, z_2, z_3, x_1, x_2, x_3)
+    local z_1, z_2, z_3 = vectorNormalize(eye[1] - target[1], eye[2] - target[2], eye[3] - target[3])
+    local x_1, x_2, x_3 = vectorNormalize(vectorCrossProduct(down[1], down[2], down[3], z_1, z_2, z_3))
+    local y_1, y_2, y_3 = vectorCrossProduct(z_1, z_2, z_3, x_1, x_2, x_3)
 
-    self[1],  self[2],  self[3],  self[4]  = x_1, x_2, x_3, -1*fastDotProduct(x_1, x_2, x_3, eye[1], eye[2], eye[3])
-    self[5],  self[6],  self[7],  self[8]  = y_1, y_2, y_3, -1*fastDotProduct(y_1, y_2, y_3, eye[1], eye[2], eye[3])
-    self[9],  self[10], self[11], self[12] = z_1, z_2, z_3, -1*fastDotProduct(z_1, z_2, z_3, eye[1], eye[2], eye[3])
+    self[1],  self[2],  self[3],  self[4]  = x_1, x_2, x_3, -1*vectorDotProduct(x_1, x_2, x_3, eye[1], eye[2], eye[3])
+    self[5],  self[6],  self[7],  self[8]  = y_1, y_2, y_3, -1*vectorDotProduct(y_1, y_2, y_3, eye[1], eye[2], eye[3])
+    self[9],  self[10], self[11], self[12] = z_1, z_2, z_3, -1*vectorDotProduct(z_1, z_2, z_3, eye[1], eye[2], eye[3])
     self[13], self[14], self[15], self[16] = 0, 0, 0, 1
 end
 

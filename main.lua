@@ -1,35 +1,22 @@
 io.stdout:setvbuf("no")
 
+local lg = love.graphics
+lg.setDefaultFilter("nearest")
+
 local g3d = require "g3d"
 local Player = require "player"
-local lg = love.graphics
+local vectors = require "g3d/vectors"
+local primitives = require "primitives"
 
 function love.load()
     lg.setBackgroundColor(0.25,0.5,1)
-    lg.setDefaultFilter("nearest")
 
     local map = g3d.newModel("assets/map.obj", "assets/tileset.png", nil, nil, {-1,-1,1})
     local background = g3d.newModel("assets/sphere.obj", "assets/starfield.png", {0,0,0}, nil, {500,500,500})
     local player = Player:new(0,0,0)
     player:addCollisionModel(map)
 
-    local timer = 0
-    local lineVerts = {
-        {-1,0,-1},
-        {1, 0,-1},
-        {-1,0, 1},
-        {1, 0, 1},
-        {1, 0,-1},
-        {-1,0, 1},
-    }
-    local linetest = g3d.newModel(lineVerts)
-    local function lineDraw(x1,y1,z1, x2,y2,z2)
-        linetest:setTranslation((x1+x2)/2, (y1+y2)/2, (z1+z2)/2)
-        local mag = math.sqrt((x1-x2)^2 + (y1-y2)^2 + (z1-z2)^2)
-        linetest:setScale(1,mag/2,1)
-        linetest:setQuaternionRotation(x1-x2, y1-y2, z1-z2, math.pi)
-        linetest:draw()
-    end
+    local canvas = {lg.newCanvas(1024,576), depth=true}
 
     local accumulator = 0
     local frametime = 1/60
@@ -53,13 +40,12 @@ function love.load()
         while accumulator > frametime do
             accumulator = accumulator - frametime
             player:update(dt)
-            timer = timer + 1/60
         end
 
         -- interpolate player between frames
         -- to stop camera jitter when fps and timestep do not match
         player:interpolate(accumulator/frametime)
-        background:setTranslation(g3d.camera.position[1], g3d.camera.position[2],g3d.camera.position[3])
+        background:setTranslation(g3d.camera.position[1],g3d.camera.position[2],g3d.camera.position[3])
     end
 
     function love.keypressed(k)
@@ -70,15 +56,40 @@ function love.load()
         g3d.camera.firstPersonLook(dx,dy)
     end
 
+    local function setColor(r,g,b,a)
+        lg.setColor(r/255, g/255, b/255, a and a/255)
+    end
+
+    local function drawTree(x,y,z)
+        setColor(56,48,46)
+        primitives.line(x,y,z, x,y-1.25,z)
+        primitives.circle(x,y,z, 0,0,0, 0.1,1,0.1)
+
+        setColor(71,164,61)
+        for i=1, math.pi*2, math.pi*2/3 do
+            local r = 0.35
+            --primitives.axisBillboard(1 + math.cos(i)*r, -0.5, 0 + math.sin(i)*r, 0,-1,0)
+            primitives.fullBillboard(x + math.cos(i)*r, y - 1, z + math.sin(i)*r)
+        end
+        primitives.fullBillboard(x, y-1.5, z)
+    end
+
     function love.draw()
+        lg.setCanvas(canvas)
+        lg.clear(0,0,0,0)
+
+        --lg.setDepthMode("lequal", true)
         map:draw()
         background:draw()
 
-        --linetest:setTranslation(2,0,0)
-        --linetest:setQuaternionRotation(1,0,0, timer)
-        --linetest:draw()
-        lineDraw(0,0,0, 1,-1,1)
+        drawTree(1,0.5,0)
+        drawTree(0,0.5,1.5)
+        drawTree(-2,0.5,-1)
 
-        lg.print(collectgarbage("count"))
+        lg.setColor(1,1,1)
+
+        lg.setCanvas()
+        lg.draw(canvas[1], 1024/2, 576/2, 0, 1,-1, 1024/2, 576/2)
+        --lg.print(collectgarbage("count"))
     end
 end
