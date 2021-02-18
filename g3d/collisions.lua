@@ -256,6 +256,11 @@ local function trianglePoint(
     end
 end
 
+-- finds the collision point between a triangle and a capsule
+-- capsules are defined with two points and a radius
+--
+-- sources:
+--     https://wickedengine.net/2020/04/26/capsule-collision-detection/
 local function triangleCapsule(
         tri_0_x, tri_0_y, tri_0_z,
         tri_1_x, tri_1_y, tri_1_z,
@@ -312,6 +317,7 @@ local function triangleCapsule(
     )
 end
 
+-- finds whether or not a triangle is inside an AABB
 local function triangleAABB(
         tri_0_x, tri_0_y, tri_0_z,
         tri_1_x, tri_1_y, tri_1_z,
@@ -339,6 +345,7 @@ local function triangleAABB(
     return len, x,y,z, nx,ny,nz
 end
 
+-- runs a given intersection function on all of the triangles made up of a given vert table
 local function findClosest(self, verts, func, ...)
     -- declare the variables that will be returned by the function
     local finalLength, where_x, where_y, where_z, norm_x, norm_y, norm_z
